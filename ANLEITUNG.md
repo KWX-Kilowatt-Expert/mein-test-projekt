@@ -51,6 +51,7 @@ Alle Mitarbeiter öffnen denselben Link auf Tablet oder Handy und melden sich mi
 | Getränk buchen | Antippen = ein Strich. Oben steht **„Nochmal dasselbe“**, darunter die **Meistverkauften** (lernt von selbst). Vertippt? → **Rückgängig** oder **−**. |
 | Zigarre / Sonderpreis | **＋ Freier Artikel** → fest in die Karte aufnehmen (Kategorie „Zigarren“) oder nur einmalig. |
 | Umsetzen | Gast wechselt den Platz oder wird mit einem anderen Deckel zusammengelegt. |
+| Aufteilen | Sammeldeckel (z. B. 6 Leute auf „Podest hinten“): **Aufteilen** → Getränke einer Person wählen, Name eintragen → **Eigener Deckel** → nächste Person. Danach zahlt jeder einzeln. Beim Abrechnen zeigt die App außerdem „Geteilt durch 2–6“. |
 | Abrechnen | **Bar** (mit Rückgeld), **EC-Karte**, **PayPal** oder **Anschreiben**. Getrennt zahlen: Mengen mit − / + wählen, der Rest bleibt auf dem Deckel. |
 | Schulden | Knopf **Schulden** oben: alle Offenen nach Namen. Antippen → zahlen (auch in Raten). **＋ Anschreiben** für Schulden ohne Deckel. |
 | Auslage | **Kasse → ＋ Auslage**, z. B. Zitronen gekauft. Wird vom Bargeld abgezogen. |

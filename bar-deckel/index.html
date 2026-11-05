@@ -111,7 +111,7 @@ main{padding:16px max(16px,env(safe-area-inset-right)) 32px max(16px,env(safe-ar
 .total{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
 .total span{font-size:13px;text-transform:uppercase;letter-spacing:.1em;color:#6d5a45}
 .total b{font-size:34px;font-family:var(--serif)}
-.actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.actions{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .abtn{padding:12px 6px;border-radius:12px;background:#dccaa8;border:1px solid #c3ad88;font-weight:600;font-size:13px;color:#3b2a1d}
 .abtn.pay{grid-column:1/-1;background:var(--red);border-color:var(--red);color:#fff;font-size:18px;padding:16px}
 .abtn:active{filter:brightness(.92)}
@@ -271,6 +271,7 @@ h4{margin:16px 0 6px;font-size:12px;letter-spacing:.1em;text-transform:uppercase
         <div class="total"><span>Summe</span><b class="num" id="bTotal">0,00 €</b></div>
         <div class="actions">
           <button class="abtn" id="btnMove">Umsetzen</button>
+          <button class="abtn" id="btnSplit">Aufteilen</button>
           <button class="abtn" id="btnRename">Name</button>
           <button class="abtn" id="btnDrop">Löschen</button>
           <button class="abtn pay" id="btnPay">Abrechnen</button>
@@ -318,6 +319,18 @@ function applyOp(s, op){
       bumpStat(s,op.item,op.d); return;
     case "rename": if(t && op.name){ t.name=op.name; addRegular(s,op.name); } return;
     case "move": if(t) t.area=op.area; return;
+    case "split":
+      if(!t || findBy(s.tabs,op.newTab)) return;
+      var nt={id:op.newTab, area:t.area, name:op.name||"Gast", opened:op.at, staff:op.staff||"", items:{}, meta:{}}, moved=0;
+      for(var si in op.sel){
+        var sn=Math.min(op.sel[si]||0, t.items[si]||0); if(sn<=0) continue;
+        nt.items[si]=sn; nt.meta[si]=t.meta[si]; moved+=sn;
+        if(t.items[si]-sn>0) t.items[si]-=sn; else { delete t.items[si]; delete t.meta[si]; }
+      }
+      if(!moved) return;
+      s.tabs.push(nt); addRegular(s,nt.name);
+      if(!Object.keys(t.items).length) s.tabs=s.tabs.filter(function(x){ return x!==t; });
+      return;
     case "merge":
       var o=findBy(s.tabs,op.into); if(!t||!o||t===o) return;
       for(var id in t.items){ o.items[id]=(o.items[id]||0)+t.items[id]; if(!o.meta[id]) o.meta[id]=t.meta[id]; }
@@ -753,6 +766,40 @@ $("#btnDrop").onclick=()=>{ const t=T();
   $("#ok").onclick=()=>{ closeModal(); cur=null; dispatch({t:"drop",tab:t.id}); closeTab(); };
 };
 
+/* ---------- Aufteilen: Getränke auf eigene Deckel pro Person verteilen ---------- */
+$("#btnSplit").onclick=()=>splitDialog();
+function splitDialog(){
+  const t=T(); if(!t||!Object.keys(t.items).length) return;
+  const sel={}; let name="";
+  const draw=()=>{
+    const ids=Object.keys(t.items);
+    const sum=Math.round(ids.reduce((s,id)=>s+lineItem(t,id).price*(sel[id]||0),0)*100)/100;
+    const n=ids.reduce((s,id)=>s+(sel[id]||0),0);
+    modal(`<h2>Aufteilen · ${esc(t.name)}</h2>
+      <p class="hint">Getränke für <b>eine Person</b> auswählen, Namen eingeben, „Eigener Deckel“ tippen – dann die nächste Person. Danach zahlt jeder einzeln.</p>
+      <input class="field" id="sn" value="${esc(name)}" placeholder="Name, z. B. Anna (leer = Gast …)" autocomplete="off">
+      <div class="paylines">${ids.map(id=>{const p=lineItem(t,id);return `<div class="pl"><div class="nm">${esc(p.name)}<small class="num">${sel[id]||0} von ${t.items[id]} · à ${eur(p.price)}</small></div>
+        <div class="pc"><button data-d="${esc(id)}">−</button><button data-u="${esc(id)}">+</button></div><div class="amt num">${eur(p.price*(sel[id]||0))}</div></div>`}).join("")}</div>
+      <div class="bigtotal"><span>Für diese Person</span><b class="num">${eur(sum)}</b></div>
+      <div class="row"><button class="btn" id="cx">Fertig</button><button class="btn gold" id="ok" ${n?"":"disabled"}>Eigener Deckel (${n})</button></div>`);
+    $("#sn").oninput=e=>name=e.target.value;
+    $$("[data-d]").forEach(b=>b.onclick=()=>{ const id=b.dataset.d; sel[id]=Math.max(0,(sel[id]||0)-1); draw(); });
+    $$("[data-u]").forEach(b=>b.onclick=()=>{ const id=b.dataset.u; sel[id]=Math.min(t.items[id],(sel[id]||0)+1); draw(); });
+    $("#cx").onclick=()=>closeModal();
+    $("#ok").onclick=()=>{
+      let nm=name.trim();
+      if(!nm){ let i=1; while(V.tabs.some(x=>x.area===t.area&&x.name===`Gast ${i}`)) i++; nm=`Gast ${i}`; }
+      const s={}; ids.forEach(id=>{ if(sel[id]>0) s[id]=sel[id]; });
+      const willEmpty=ids.every(id=>(sel[id]||0)>=t.items[id]);
+      dispatch({t:"split",tab:t.id,newTab:uid(),sel:s,name:nm});
+      toast(`Eigener Deckel für ${nm} · ${eur(sum)}`,false);
+      if(willEmpty){ closeModal(); cur=null; closeTab(); return; }
+      splitDialog();
+    };
+  };
+  draw();
+}
+
 /* ---------- Abrechnen ---------- */
 $("#btnPay").onclick=()=>payDialog();
 function methodBtns(m,withDebt){
@@ -774,6 +821,7 @@ function payDialog(){
         <div class="pc"><button data-d="${esc(id)}">−</button><button data-u="${esc(id)}">+</button></div><div class="amt num">${eur(p.price*(sel[id]||0))}</div></div>`}).join("")}</div>
       <div style="display:flex;gap:14px"><button class="link" id="sAll">alles</button><button class="link" id="sNone">nichts</button></div>
       <div class="bigtotal"><span>${all?"Gesamt":"Teilbetrag"}</span><b class="num">${eur(sum)}</b></div>
+      ${sum>0?`<div class="hint" style="margin:-4px 0 6px">Geteilt durch: ${[2,3,4,5,6].map(n=>`<b>${n}</b> → ${eur(Math.ceil(sum/n*100)/100)}`).join(" · ")}</div>`:""}
       <span class="lbl">Zahlart <span style="text-transform:none;letter-spacing:0">(nur zur Dokumentation – kassiert wird wie gewohnt am Terminal / per PayPal)</span></span>${methodBtns(method,true)}
       ${method==="bar"?`<span class="lbl">Gegeben (optional, fürs Rückgeld)</span>
         <div class="cash">${opts.map(v=>`<button class="num${given===v?" on":""}" data-g="${v}">${eur(v)}</button>`).join("")}</div>

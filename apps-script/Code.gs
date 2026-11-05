@@ -105,6 +105,18 @@ function applyOp(s, op){
       bumpStat(s,op.item,op.d); return;
     case "rename": if(t && op.name){ t.name=op.name; addRegular(s,op.name); } return;
     case "move": if(t) t.area=op.area; return;
+    case "split":
+      if(!t || findBy(s.tabs,op.newTab)) return;
+      var nt={id:op.newTab, area:t.area, name:op.name||"Gast", opened:op.at, staff:op.staff||"", items:{}, meta:{}}, moved=0;
+      for(var si in op.sel){
+        var sn=Math.min(op.sel[si]||0, t.items[si]||0); if(sn<=0) continue;
+        nt.items[si]=sn; nt.meta[si]=t.meta[si]; moved+=sn;
+        if(t.items[si]-sn>0) t.items[si]-=sn; else { delete t.items[si]; delete t.meta[si]; }
+      }
+      if(!moved) return;
+      s.tabs.push(nt); addRegular(s,nt.name);
+      if(!Object.keys(t.items).length) s.tabs=s.tabs.filter(function(x){ return x!==t; });
+      return;
     case "merge":
       var o=findBy(s.tabs,op.into); if(!t||!o||t===o) return;
       for(var id in t.items){ o.items[id]=(o.items[id]||0)+t.items[id]; if(!o.meta[id]) o.meta[id]=t.meta[id]; }
