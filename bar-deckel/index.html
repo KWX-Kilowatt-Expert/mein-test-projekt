@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#140f0b">
+<title>Prediger Deckel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#140f0b; --bg2:#1c150f; --panel:#241b14; --panel2:#2e2219; --line:#3f3024;
+  --ink:#efe4cf; --muted:#a8957b; --dim:#6f604e;
+  --red:#a8322a; --red2:#c8443a; --gold:#d0a857; --gold2:#e8c77d; --green:#6f9a5b;
+  --serif:"Cormorant Garamond", Georgia, serif; --sans:Inter, system-ui, sans-serif; --fraktur:"UnifrakturMaguntia", serif;
+  --r:14px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;font-variant-numeric:lining-nums;background:var(--bg);color:var(--ink);font-family:var(--sans);overscroll-behavior:none}
+body{background:radial-gradient(1200px 600px at 20% -10%,#2a1d14 0%,transparent 60%),var(--bg);user-select:none;-webkit-user-select:none}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;touch-action:manipulation}
+input{font:inherit;color:var(--ink)}
+.num{font-variant-numeric:lining-nums tabular-nums}
+
+/* ---------- Kopfzeile ---------- */
+header{display:flex;align-items:center;gap:16px;padding:12px max(16px,env(safe-area-inset-right)) 12px max(16px,env(safe-area-inset-left));border-bottom:1px solid var(--line);background:rgba(20,15,11,.85);position:sticky;top:0;z-index:5;backdrop-filter:blur(8px)}
+.logo{font-family:var(--fraktur);font-size:34px;color:var(--gold);line-height:1;letter-spacing:.5px}
+.logo b{color:var(--red2);font-weight:400}
+.sub{font-family:var(--serif);color:var(--muted);font-size:17px;font-style:italic}
+.spacer{flex:1}
+.kpi{display:flex;flex-direction:column;align-items:flex-end;line-height:1.15}
+.kpi small{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em}
+.kpi span{font-weight:600;font-size:18px}
+.hbtn{padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:var(--panel);font-weight:500;font-size:14px}
+.hbtn:active{background:var(--panel2)}
+
+/* ---------- Raumplan ---------- */
+main{padding:16px max(16px,env(safe-area-inset-right)) 32px max(16px,env(safe-area-inset-left))}
+.floor{display:grid;gap:12px;grid-template-columns:repeat(12,1fr);grid-auto-rows:minmax(150px,auto);
+  grid-template-areas:
+  "ph ph ph ph fe fe fe fe t2 t2 t2 t2"
+  "pv pv pv sh sh sh sv sv sv t1 t1 t1"
+  "ba ba ba ba ba ba ba ba ba xt xt xt"}
+.area{background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--line);border-radius:var(--r);padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.area.busy{border-color:#5a4330;box-shadow:inset 0 0 0 1px rgba(208,168,87,.08)}
+.area h3{margin:0;display:flex;align-items:baseline;gap:8px;font-family:var(--serif);font-size:22px;font-weight:700;color:var(--gold2)}
+.area h3 small{font-family:var(--sans);font-size:12px;color:var(--muted);font-weight:500;margin-left:auto}
+.tabs{display:flex;flex-wrap:wrap;gap:8px;align-content:flex-start;flex:1}
+.chip{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:118px;padding:10px 12px;border-radius:12px;background:#33251a;border:1px solid #4b3826;text-align:left}
+.chip:active{transform:scale(.97)}
+.chip .n{font-family:var(--serif);font-size:20px;font-weight:700;line-height:1.05;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip .s{font-size:13px;color:var(--gold);font-weight:600}
+.chip .t{font-size:11px;color:var(--muted)}
+.add{min-width:56px;min-height:58px;border-radius:12px;border:1.5px dashed #5a4632;color:var(--muted);font-size:28px;display:grid;place-items:center}
+.add:active{background:#2a1f16}
+
+/* ---------- Overlay: Deckel ---------- */
+.sheet{position:fixed;inset:0;z-index:20;background:var(--bg);display:none;flex-direction:column}
+.sheet.open{display:flex}
+.sheethead{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--bg2)}
+.back{width:48px;height:48px;border-radius:12px;background:var(--panel);border:1px solid var(--line);font-size:22px}
+.guest{display:flex;flex-direction:column;line-height:1.1;min-width:0}
+.guest b{font-family:var(--serif);font-size:28px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.guest span{color:var(--muted);font-size:13px}
+.split{flex:1;display:grid;grid-template-columns:minmax(0,1fr) 380px;grid-template-rows:minmax(0,1fr);min-height:0}
+.picker{display:flex;flex-direction:column;min-height:0;min-width:0;border-right:1px solid var(--line)}
+.cats{display:flex;gap:6px;padding:10px 12px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--line)}
+.cats::-webkit-scrollbar{display:none}
+.cat{flex:none;padding:10px 14px;border-radius:999px;background:var(--panel);border:1px solid var(--line);font-size:14px;font-weight:500;white-space:nowrap;color:var(--muted)}
+.cat.on{background:var(--red);border-color:var(--red2);color:#fff}
+.search{margin:10px 12px 0;display:flex;gap:8px}
+.search input{flex:1;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--panel);outline:none;font-size:16px}
+.search input:focus{border-color:var(--gold)}
+.grid{flex:1;overflow:auto;padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;align-content:start}
+.prod{position:relative;min-height:92px;padding:12px;border-radius:12px;background:linear-gradient(180deg,#2d2118,#241a13);border:1px solid var(--line);text-align:left;display:flex;flex-direction:column;justify-content:space-between;gap:6px}
+.prod:active{transform:scale(.96);background:#3a2a1d}
+.prod .pn{font-family:var(--serif);font-size:19px;font-weight:700;line-height:1.08}
+.prod .pm{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:var(--muted)}
+.prod .pp{color:var(--gold2);font-weight:600;font-size:14px}
+.prod .badge{position:absolute;top:8px;right:8px;min-width:24px;height:24px;padding:0 7px;border-radius:12px;background:var(--red);color:#fff;font-size:12px;font-weight:700;display:grid;place-items:center}
+.prod.fav{border-color:#5c4527}
+.prod.flash{animation:flash .35s}
+@keyframes flash{0%{box-shadow:0 0 0 0 rgba(232,199,125,.7)}100%{box-shadow:0 0 0 14px rgba(232,199,125,0)}}
+.sectionlbl{grid-column:1/-1;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:6px 2px -2px}
+.prod.custom{border-style:dashed;align-items:center;justify-content:center;text-align:center;color:var(--muted)}
+
+/* Rechnung */
+.bill{display:flex;flex-direction:column;min-height:0;background:#efe4cf;color:#2a1e15;position:relative}
+.bill::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 30% 20%,rgba(120,80,40,.10),transparent 50%),radial-gradient(circle at 80% 70%,rgba(120,80,40,.12),transparent 45%);pointer-events:none}
+.billhead{padding:14px 18px 8px;border-bottom:1px dashed #b9a586;position:relative}
+.billhead .fr{font-family:var(--fraktur);font-size:26px;color:var(--red)}
+.billhead small{display:block;color:#7a6650;font-size:12px}
+.lines{flex:1;overflow:auto;padding:6px 10px;position:relative}
+.line{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:10px 8px;border-bottom:1px dotted #c8b598;align-items:center}
+.line .ln{font-family:var(--serif);font-weight:700;font-size:19px;line-height:1.1}
+.line .lt{grid-column:1;display:flex;align-items:center;gap:8px;color:#6d5a45;font-size:12px}
+.line .lsum{font-weight:600;font-size:15px;text-align:right}
+.line .ctl{grid-column:2;grid-row:1/3;display:flex;align-items:center;gap:6px}
+.step{width:40px;height:40px;border-radius:10px;background:#e2d3b8;border:1px solid #c8b598;font-size:20px;font-weight:600;color:#3b2a1d}
+.step:active{background:#d4c09e}
+.step.plus{background:var(--red);border-color:var(--red);color:#fff}
+.qty{min-width:22px;text-align:center;font-weight:700}
+.tally{display:inline-flex;gap:5px;flex-wrap:wrap}
+.tg{position:relative;display:inline-flex;gap:2px;height:14px}
+.tg i{display:block;width:2px;height:14px;background:#5b3a26;border-radius:1px}
+.tg.five::after{content:"";position:absolute;left:-2px;right:-2px;top:6px;height:2px;background:var(--red);transform:rotate(-24deg)}
+.empty{padding:40px 20px;text-align:center;color:#8a7458;font-family:var(--serif);font-size:20px;font-style:italic}
+.billfoot{padding:12px 16px 16px;border-top:2px solid #2a1e15;position:relative;background:#e7d9bf}
+.total{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
+.total span{font-size:13px;text-transform:uppercase;letter-spacing:.1em;color:#6d5a45}
+.total b{font-size:34px;font-family:var(--serif)}
+.actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.abtn{padding:12px 6px;border-radius:12px;background:#dccaa8;border:1px solid #c3ad88;font-weight:600;font-size:13px;color:#3b2a1d}
+.abtn.pay{grid-column:1/-1;background:var(--red);border-color:var(--red);color:#fff;font-size:18px;padding:16px}
+.abtn:active{filter:brightness(.92)}
+.abtn:disabled{opacity:.4}
+
+/* ---------- Dialoge ---------- */
+.modal{position:fixed;inset:0;z-index:40;background:rgba(8,5,3,.72);display:none;align-items:center;justify-content:center;padding:16px}
+.modal.open{display:flex}
+.box{width:min(560px,100%);max-height:92vh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:20px;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+.box h2{margin:0 0 4px;font-family:var(--serif);font-size:30px;color:var(--gold2)}
+.box p.hint{margin:0 0 14px;color:var(--muted);font-size:14px}
+.field{width:100%;padding:14px 16px;border-radius:12px;border:1px solid var(--line);background:var(--bg2);font-size:20px;outline:none;font-family:var(--serif);font-weight:600}
+.field:focus{border-color:var(--gold)}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+.btn{flex:1;padding:14px;border-radius:12px;background:var(--panel2);border:1px solid var(--line);font-weight:600;font-size:16px;min-width:120px}
+.btn.pri{background:var(--red);border-color:var(--red2);color:#fff}
+.btn.gold{background:var(--gold);border-color:var(--gold2);color:#1c140d}
+.btn:active{filter:brightness(1.15)}
+.sugg{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.sugg button{padding:9px 14px;border-radius:999px;background:var(--bg2);border:1px solid var(--line);font-family:var(--serif);font-size:18px;font-weight:600}
+.areas{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.areas button{padding:16px 8px;border-radius:12px;background:var(--bg2);border:1px solid var(--line);font-family:var(--serif);font-size:19px;font-weight:700}
+.areas button.cur{border-color:var(--gold);color:var(--gold2)}
+.paylines{margin:8px 0 10px;border-top:1px solid var(--line)}
+.pl{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.pl .nm{font-family:var(--serif);font-size:18px;font-weight:700}
+.pl .nm small{display:block;font-family:var(--sans);font-size:12px;color:var(--muted);font-weight:400}
+.pl .pc{display:flex;align-items:center;gap:6px}
+.pl .pc button{width:36px;height:36px;border-radius:10px;background:var(--bg2);border:1px solid var(--line);font-size:18px}
+.pl .amt{min-width:70px;text-align:right;font-weight:600}
+.bigtotal{display:flex;justify-content:space-between;align-items:baseline;padding:8px 0}
+.bigtotal b{font-family:var(--serif);font-size:40px;color:var(--gold2)}
+.cash{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:6px}
+.cash button{padding:14px 4px;border-radius:12px;background:var(--bg2);border:1px solid var(--line);font-weight:600}
+.cash button.on{border-color:var(--gold);color:var(--gold2)}
+.change{margin-top:12px;padding:12px 14px;border-radius:12px;background:#1a2a17;border:1px solid #33502b;display:flex;justify-content:space-between;align-items:baseline}
+.change b{font-size:26px;font-family:var(--serif);color:#a9d68f}
+.link{color:var(--gold);text-decoration:underline;font-size:14px;padding:6px 0}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
+.stat{background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:12px}
+.stat small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em}
+.stat b{font-size:22px;font-family:var(--serif)}
+.list{border-top:1px solid var(--line)}
+.li{display:flex;justify-content:space-between;gap:10px;padding:9px 2px;border-bottom:1px solid var(--line);font-size:14px}
+.li span:first-child{color:var(--ink)} .li span:last-child{color:var(--muted)}
+h4{margin:16px 0 6px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(120px);z-index:60;background:#0d0906;border:1px solid var(--gold);color:var(--ink);padding:10px 10px 10px 18px;border-radius:14px;display:flex;align-items:center;gap:14px;transition:transform .2s;box-shadow:0 10px 30px rgba(0,0,0,.5);max-width:calc(100% - 32px)}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.toast button{padding:9px 14px;border-radius:10px;background:var(--gold);color:#1c140d;font-weight:700}
+
+/* ---------- Kleinere Bildschirme ---------- */
+@media (max-width:1000px){
+  .floor{grid-template-columns:1fr 1fr;grid-template-areas:"ph fe" "t2 pv" "sh sv" "t1 xt" "ba ba"}
+  .split{grid-template-columns:minmax(0,1fr) 330px}
+}
+@media (max-width:720px){
+  header{flex-wrap:wrap;gap:8px 12px}
+  .sub{display:none}
+  .floor{grid-template-columns:1fr;grid-template-areas:"ba" "ph" "pv" "fe" "sh" "sv" "t1" "t2" "xt"}
+  .split{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) 46%}
+  .picker{border-right:0;border-bottom:1px solid var(--line)}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}
+  .areas{grid-template-columns:1fr 1fr}
+  .cash{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Prediger <b>·</b></div>
+  <div class="sub" id="today"></div>
+  <div class="spacer"></div>
+  <div class="kpi"><small>Offene Deckel</small><span class="num" id="kOpen">0</span></div>
+  <div class="kpi"><small>Offen gesamt</small><span class="num" id="kSum">0,00 €</span></div>
+  <div class="kpi"><small>Kasse heute</small><span class="num" id="kPaid">0,00 €</span></div>
+  <button class="hbtn" id="btnDay">Tag &amp; Verlauf</button>
+</header>
+
+<main><div class="floor" id="floor"></div></main>
+
+<!-- Deckel-Ansicht -->
+<section class="sheet" id="sheet">
+  <div class="sheethead">
+    <button class="back" id="btnBack" aria-label="Zurück">←</button>
+    <div class="guest"><b id="gName">–</b><span id="gMeta"></span></div>
+  </div>
+  <div class="split">
+    <div class="picker">
+      <div class="cats" id="cats"></div>
+      <div class="search"><input id="q" placeholder="Getränk suchen … (z. B. cuba, kölsch, oban)" autocomplete="off"></div>
+      <div class="grid" id="grid"></div>
+    </div>
+    <aside class="bill">
+      <div class="billhead"><div class="fr">Deckel</div><small id="bMeta"></small></div>
+      <div class="lines" id="lines"></div>
+      <div class="billfoot">
+        <div class="total"><span>Summe</span><b class="num" id="bTotal">0,00 €</b></div>
+        <div class="actions">
+          <button class="abtn" id="btnMove">Umsetzen</button>
+          <button class="abtn" id="btnRename">Name</button>
+          <button class="abtn" id="btnCloseEmpty">Löschen</button>
+          <button class="abtn pay" id="btnPay">Abrechnen</button>
+        </div>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<div class="modal" id="modal"><div class="box" id="box"></div></div>
+<div class="toast" id="toast"><span id="toastMsg"></span><button id="toastUndo">Rückgängig</button></div>
+
+<script>
+/* =========================================================
+   KARTE – aus der Getränkekarte übernommen
+   ========================================================= */
+const MENU = [
+ {cat:"Cocktails", items:[
+  ["Cuba Libre",8.5,"Rum, Limette, Cola"],["El Gringo",11,"Rum, Tequila, Cachaça, Mango, Maracuja"],["Caipirinha",11,"Cachaça, Limette, Rohrzucker"],
+  ["Long Island Ice Tea",11,"Rum, Wodka, Tequila, Gin, Triple Sec, Cola"],["Margarita Erdbeere",11,"Tequila, Triple Sec, Erdbeere, Limette"],
+  ["Margarita Naturale",11,"Tequila, Triple Sec, Limette"],["Mojito",11,"Rum, Minze, Limette, Zucker, Soda"],["Moscow Mule",11,"Vodka, Lime, Spicy Ginger, Gurke"],
+  ["Planter's Punch",11,"Rum, Zitrone, Orange, Angostura, Grenadine"],["Royal Navy Fog Cutter",11,"Gin, Rum, Brandy, Portwein, O-Saft, Mandel"],
+  ["Titty Twister",11,"Tequila, Whisky, Grappa, Maracuja, Limette"]]},
+ {cat:"Before Dinner", items:[
+  ["French 68",11,"Calvados, Brandy, Zitrone, Grenadine, Sekt"],["French 75",11,"Gin, Zitrone, Zucker, Angostura, Sekt"],["Gin Fizz",11,"Gin, Zitrone, Zucker, Soda"],
+  ["Manhattan",11,"Whiskey, Vermouth dry + rosso, Angostura"],["Martini Cocktail",11,"Gin, Vermouth dry"],["Negroni",11,"Gin, Vermouth, Campari"],["Spider Bite",11,"Wodka, Triple Sec, Malibu, Angostura"]]},
+ {cat:"After Dinner", items:[
+  ["Jamaica Fire",11,"Jamaican Rum, Mandel, Zitrone, Maracuja, Rum 73%"],["Mai Tai",11,"Jamaican Rum, Triple Sec, Mandel, Limette"],["Mer du Sud",11,"Cointreau, Blue Curaçao, Ananas, Ginger Ale"],
+  ["Piña Colada",11,"Rum, Ananas, Kokos"],["Prince",11,"Tequila, 43er, Kokos, Maracuja"],["Sex on the Beach",11,"Wodka, Triple Sec, Cranberry, Maracuja, Ananas"],["White Russian",11,"Kahlúa, Wodka, Sahne"]]},
+ {cat:"Sours", items:[
+  ["43 Sour",9.5,"43er, Zitrone"],["Aperol Sour",9.5,"Aperol, Zitrone"],["Gin Sour",9.5,"Gin, Limette, Rohrzucker"],["Rum Sour (Daiquiri)",9.5,"Rum, Limette, Rohrzucker"],
+  ["Pisco Sour",9.5,"Pisco, Limette, Rohrzucker"],["Whisky Sour",9.5,"Scotch, Zitrone, Rohrzucker"],["Frangelico Sour",9.5,"Frangelico, Limette"],["Vodka Sour",9.5,"Vodka, Limette, Rohrzucker"]]},
+ {cat:"Mocktails", items:[
+  ["Acapulco Gold",8,"Ananas, Kokos, Grapefruit"],["Coconut Kiss",8,"Ananas, Kirsch, Zitrone, Kokos"],["Coconut Lips",8,"Ananas, Himbeer, Kokos"],["Fernando",8,"Limette, Rohrzucker, Spicy Ginger"],
+  ["Herbal Strawberry",8,"Erdbeere, Basilikum, Maracuja, Cranberry"],["San Francisco",8,"O-Saft, Ananas, Grapefruit, Zitrone, Grenadine"],["Virgin Mojito",8,"Minze, Rohrzucker, Limette, Tonic"]]},
+ {cat:"Gin & Tonic", items:[
+  ["Monkey 47",12,"4cl · mit Thomas Henry Tonic"],["Bombay Sapphire",9.5,"4cl · mit Tonic"],["Hendrick's",9.5,"4cl · mit Tonic"],["Tanqueray London",9.5,"4cl · mit Tonic"],
+  ["Tanqueray Rangpur",9.5,"4cl · mit Tonic"],["Tanqueray Sevilla",9.5,"4cl · mit Tonic"],["Tanqueray No. 10",11,"4cl · mit Tonic"]]},
+ {cat:"Whisky", items:[
+  ["Cragganmore 12",11,"Speyside · 4cl"],["Dalwhinnie 15",11,"Highlands · 4cl"],["Glenkinchie 10",11,"Lowlands · 4cl"],["Oban 14",11,"Highlands · 4cl"],
+  ["Talisker 10",11,"Skye · 4cl"],["Lagavulin 16",14,"Islay · 4cl"]]},
+ {cat:"Rum · Brandy · Port", items:[
+  ["Havana Club 7",8.8,"Rum · 4cl"],["Matusalem 15",9.5,"Rum · 4cl"],["Appleton Extra 12",11,"Rum · 4cl"],
+  ["Cardenal Mendoza Gran Reserva",8.8,"Brandy · 4cl"],["Cardenal Mendoza Carta Real",14,"Brandy · 4cl"],["Messias Port 10",6,"Portwein · 5cl"]]},
+ {cat:"Tequila & Mezcal", items:[
+  ["Jose Cuervo Especial",3,"Silver/Reposado · 2cl"],["1800 Blanco",4,"2cl"],["1800 Añejo",4,"2cl"],["Don Julio Reposado",5,"2cl"],
+  ["Cuervo Reserva de la Familia",11,"2cl"],["Montelobos Espadín",5,"Mezcal · 2cl"],["Mezcal Local Destilado",7,"Mezcal · 2cl"]]},
+ {cat:"Shooters", items:[
+  ["Mexikaner",3,"3cl"],["Red Ouzo",3,"3cl"],["B 52",3.5,"3cl"],["Brain Damage",3.5,"3cl"],["Hiroshima",3.5,"3cl"],["Orgasmus",3.5,"3cl"],["Pepito Negro",3.5,"3cl"],["Wild Dog",3.5,"3cl"]]},
+ {cat:"Bittersüßes", items:[
+  ["Sambuca Molinari",3,"2cl · Kaffeebohnen"],["Averna",3,"2cl"],["Jägermeister",3,"2cl · eiskalt"],["Ramazzotti",3,"2cl"],["Amaretto",4,"4cl"],["Baileys",5,"4cl"],["Frangelico",5,"4cl"]]},
+ {cat:"Aperitif", items:[
+  ["Prosecco Spumante",4,"10cl"],["Martini Bianco",5,"10cl"],["Campari",7,"4cl · Orange/Soda"],["Pastis 51",7,"4cl · + Eau"],["Longdrink",7,"4cl Spirituose + Filler"],
+  ["Aperol Spritz",7,"20cl"],["Prosecco auf Eis",7,"20cl"]]},
+ {cat:"Bier", items:[
+  ["Früh Kölsch",2.8,"0,2 l · vom Fass"],["Kranz Kölsch",28,"11 × 0,2 l"],["Jever Pils",4,"0,3 l · vom Fass"],["San Miguel",4,"0,3 l · vom Fass"],
+  ["Büble Dunkel (Halbe)",6,"0,5 l · vom Fass"],["Beck's",3.5,"0,33 l · Flasche"],["Andechser Weißbier",5,"0,5 l · Flasche"],["Jever Fun",3.5,"0,33 l · alkoholfrei"]]},
+ {cat:"Kaffee", items:[
+  ["Espresso",1.5,""],["Espresso Doppio",3,""],["Kaffee",3,""],["Cappuccino",3.5,""],["Espresso Corretto",4,"1cl Grappa"],["Espresso Carajillo",4,"1cl Brandy"],
+  ["Coffee Baileys",6,"4cl Baileys"],["Coffee Kahlúa",6,"4cl Kahlúa"]]},
+ {cat:"Alkoholfrei", items:[
+  ["Wasser 0,25",2.5,"Teinacher medium/naturell"],["Wasser 0,75",5.5,"Teinacher medium/naturell"],["Black Forest",3,"0,4 l"],["Coca Cola",3.5,"0,33 l"],["Cola Zero",3.5,"0,33 l"],
+  ["Red Bull",3.8,"0,25 l"],["Thomas Henry",3.5,"0,2 l · Tonic, Ginger Ale, Bitter Lemon …"],["Saft 0,2",3,"Ananas, Apfel, Grapefruit, Orange, Maracuja"],
+  ["Saft 0,4",5,"Ananas, Apfel, Grapefruit, Orange, Maracuja"],["Schorle 0,4",3.5,"Apfel, Orange, Maracuja …"]]},
+];
+// Startwerte für Favoriten, solange noch keine Verkaufszahlen da sind
+const DEFAULT_FAVS = ["Cuba Libre","Büble Dunkel (Halbe)","Früh Kölsch","Jägermeister","Gin Sour","Aperol Spritz","Moscow Mule","Caipirinha","Jever Pils","Coca Cola","Wasser 0,25","Espresso"];
+
+const AREAS = [
+  {id:"ph",name:"Podest hinten"},{id:"fe",name:"Fenster"},{id:"t2",name:"Tisch 2"},
+  {id:"pv",name:"Podest vorne"},{id:"sh",name:"Säule hinten"},{id:"sv",name:"Säule vorne"},{id:"t1",name:"Tisch 1"},
+  {id:"ba",name:"Bar"},{id:"xt",name:"X-TRA"},
+];
+
+/* ---------- Hilfsfunktionen ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const eur = n => (Math.round(n*100)/100).toLocaleString("de-DE",{minimumFractionDigits:2,maximumFractionDigits:2})+" €";
+const slug = s => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const dayKey = (d=new Date()) => { const x=new Date(d); if(x.getHours()<8) x.setDate(x.getDate()-1); return x.toISOString().slice(0,10); }; // Barnacht zählt bis 8 Uhr morgens
+const timeStr = t => new Date(t).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
+
+/* ---------- Speicher ---------- */
+const KEY = "prediger-deckel-v1";
+let S = {tabs:[], paid:[], stats:{}, custom:[], regulars:[]};
+function load(){ try{ const r=localStorage.getItem(KEY); if(r) S=Object.assign(S,JSON.parse(r)); }catch(e){} }
+function save(){ try{ localStorage.setItem(KEY,JSON.stringify(S)); }catch(e){} }
+
+/* ---------- Produktkatalog ---------- */
+let PRODUCTS = {};
+function buildCatalog(){
+  PRODUCTS = {};
+  MENU.forEach(c=>c.items.forEach(([n,p,d])=>{ PRODUCTS[slug(n)]={id:slug(n),name:n,price:p,desc:d,cat:c.cat}; }));
+  S.custom.forEach(c=>{ PRODUCTS[c.id]={...c,cat:"Eigene"}; });
+}
+function favorites(n=12){
+  const ranked = Object.entries(S.stats).filter(([id])=>PRODUCTS[id]).sort((a,b)=>b[1]-a[1]).map(([id])=>id);
+  DEFAULT_FAVS.map(slug).forEach(id=>{ if(!ranked.includes(id)) ranked.push(id); });
+  return ranked.slice(0,n);
+}
+const tabTotal = t => Object.entries(t.items).reduce((s,[id,q])=>s+(lineItem(t,id).price*q),0);
+// Preis wird beim ersten Buchen auf dem Deckel eingefroren
+function lineItem(t,id){ return (t.meta&&t.meta[id]) || PRODUCTS[id] || {name:id,price:0}; }
+
+/* =========================================================
+   RAUMPLAN
+   ========================================================= */
+function renderFloor(){
+  const f=$("#floor"); f.innerHTML="";
+  AREAS.forEach(a=>{
+    const tabs=S.tabs.filter(t=>t.area===a.id);
+    const sum=tabs.reduce((s,t)=>s+tabTotal(t),0);
+    const el=document.createElement("div");
+    el.className="area"+(tabs.length?" busy":""); el.style.gridArea=a.id;
+    el.innerHTML=`<h3>${a.name}${tabs.length?`<small class="num">${tabs.length} · ${eur(sum)}</small>`:""}</h3><div class="tabs"></div>`;
+    const box=el.querySelector(".tabs");
+    tabs.sort((x,y)=>x.opened-y.opened).forEach(t=>{
+      const b=document.createElement("button"); b.className="chip";
+      const n=Object.values(t.items).reduce((s,q)=>s+q,0);
+      b.innerHTML=`<span class="n">${esc(t.name)}</span><span class="s num">${eur(tabTotal(t))}</span><span class="t">${n} Getränk${n===1?"":"e"} · seit ${timeStr(t.opened)}</span>`;
+      b.onclick=()=>openTab(t.id); box.appendChild(b);
+    });
+    const add=document.createElement("button"); add.className="add"; add.textContent="+"; add.setAttribute("aria-label",`Neuer Gast ${a.name}`);
+    add.onclick=()=>newGuest(a.id); box.appendChild(add);
+    f.appendChild(el);
+  });
+  const open=S.tabs.reduce((s,t)=>s+tabTotal(t),0);
+  const paidToday=S.paid.filter(p=>p.day===dayKey()).reduce((s,p)=>s+p.amount,0);
+  $("#kOpen").textContent=S.tabs.length; $("#kSum").textContent=eur(open); $("#kPaid").textContent=eur(paidToday);
+}
+
+/* =========================================================
+   DIALOGE
+   ========================================================= */
+function modal(html){ $("#box").innerHTML=html; $("#modal").classList.add("open"); }
+function closeModal(){ $("#modal").classList.remove("open"); }
+$("#modal").addEventListener("click",e=>{ if(e.target.id==="modal") closeModal(); });
+
+function nameDialog({title,hint,value="",onOk,okLabel="Öffnen"}){
+  const regs=S.regulars.slice(0,16);
+  modal(`<h2>${title}</h2><p class="hint">${hint}</p>
+    <input class="field" id="nm" value="${esc(value)}" placeholder="Name, z. B. Rudi" autocomplete="off">
+    ${regs.length?`<h4>Stammgäste</h4><div class="sugg">${regs.map(r=>`<button data-n="${esc(r)}">${esc(r)}</button>`).join("")}</div>`:""}
+    <div class="row"><button class="btn" id="cx">Abbrechen</button><button class="btn pri" id="ok">${okLabel}</button></div>`);
+  const nm=$("#nm"); setTimeout(()=>nm.focus(),50);
+  const go=v=>{ v=(v||"").trim(); closeModal(); onOk(v); };
+  $("#ok").onclick=()=>go(nm.value); $("#cx").onclick=closeModal;
+  nm.onkeydown=e=>{ if(e.key==="Enter") go(nm.value); };
+  nm.oninput=()=>{ const q=nm.value.toLowerCase(); document.querySelectorAll(".sugg button").forEach(b=>b.style.display=b.dataset.n.toLowerCase().includes(q)?"":"none"); };
+  document.querySelectorAll(".sugg button").forEach(b=>b.onclick=()=>go(b.dataset.n));
+}
+function rememberName(n){
+  if(!n || /^Gast \d+$/.test(n)) return;
+  S.regulars=[n,...S.regulars.filter(r=>r.toLowerCase()!==n.toLowerCase())].slice(0,60);
+}
+
+function newGuest(area){
+  const a=AREAS.find(x=>x.id===area);
+  nameDialog({title:`Neuer Deckel · ${a.name}`,hint:"Name eintragen – oder leer lassen, dann heißt er „Gast 1“, „Gast 2“ …",
+    onOk:v=>{
+      if(!v){ let i=1; while(S.tabs.some(t=>t.area===area&&t.name===`Gast ${i}`)) i++; v=`Gast ${i}`; }
+      rememberName(v);
+      const t={id:uid(),area,name:v,items:{},meta:{},opened:Date.now(),log:[]};
+      S.tabs.push(t); save(); renderFloor(); openTab(t.id);
+    }});
+}
+
+/* =========================================================
+   DECKEL
+   ========================================================= */
+let cur=null, curCat="★", undoStack=[];
+const T = () => S.tabs.find(t=>t.id===cur);
+
+function openTab(id){ cur=id; curCat="★"; $("#q").value=""; $("#sheet").classList.add("open"); renderTab(); }
+function closeTab(){ cur=null; $("#sheet").classList.remove("open"); hideToast(); renderFloor(); }
+$("#btnBack").onclick=closeTab;
+
+function renderTab(){
+  const t=T(); if(!t) return closeTab();
+  const a=AREAS.find(x=>x.id===t.area);
+  $("#gName").textContent=t.name; $("#gMeta").textContent=`${a.name} · seit ${timeStr(t.opened)}`;
+  $("#bMeta").textContent=`${t.name} · ${a.name}`;
+  renderCats(); renderGrid(); renderLines();
+}
+function renderCats(){
+  const cats=["★",...MENU.map(c=>c.cat),...(S.custom.length?["Eigene"]:[])];
+  $("#cats").innerHTML=cats.map(c=>`<button class="cat${c===curCat&&!$("#q").value?" on":""}" data-c="${esc(c)}">${c==="★"?"★ Favoriten":esc(c)}</button>`).join("");
+  document.querySelectorAll(".cat").forEach(b=>b.onclick=()=>{ curCat=b.dataset.c; $("#q").value=""; renderCats(); renderGrid(); $("#grid").scrollTop=0; });
+}
+function prodBtn(p,t,fav){
+  const q=t.items[p.id]||0;
+  return `<button class="prod${fav?" fav":""}" data-id="${p.id}">${q?`<span class="badge num">${q}</span>`:""}
+    <span class="pn">${esc(p.name)}</span><span class="pm"><span>${esc(fav?p.cat:(p.desc||"").split(",").slice(0,3).join(","))}</span><span class="pp num">${eur(p.price)}</span></span></button>`;
+}
+function renderGrid(){
+  const t=T(), g=$("#grid"), q=$("#q").value.trim().toLowerCase();
+  let html="";
+  if(q){
+    const hits=Object.values(PRODUCTS).filter(p=>(p.name+" "+(p.desc||"")+" "+p.cat).toLowerCase().includes(q));
+    html=hits.map(p=>prodBtn(p,t)).join("") || `<div class="sectionlbl">Nichts gefunden</div>`;
+  } else if(curCat==="★"){
+    const mine=Object.keys(t.items).filter(id=>PRODUCTS[id]);
+    if(mine.length) html+=`<div class="sectionlbl">Nochmal dasselbe</div>`+mine.map(id=>prodBtn(PRODUCTS[id],t,true)).join("");
+    html+=`<div class="sectionlbl">Meistverkauft</div>`+favorites().filter(id=>!mine.includes(id)).map(id=>prodBtn(PRODUCTS[id],t,true)).join("");
+  } else {
+    html=Object.values(PRODUCTS).filter(p=>p.cat===curCat).map(p=>prodBtn(p,t)).join("");
+  }
+  html+=`<button class="prod custom" id="btnCustom"><span class="pn">+ Freier Artikel</span><span style="font-size:12px">Zigarre, Sonderpreis …</span></button>`;
+  g.innerHTML=html;
+  g.querySelectorAll(".prod[data-id]").forEach(b=>b.onclick=()=>{ add(b.dataset.id,1); b.classList.remove("flash"); void b.offsetWidth; b.classList.add("flash"); });
+  $("#btnCustom").onclick=customDialog;
+}
+$("#q").addEventListener("input",()=>{ renderCats(); renderGrid(); });
+
+function tallyHtml(n){
+  if(n>40) return `<span class="num">${n}×</span>`;
+  let h=""; for(let i=0;i<n;i+=5){ const k=Math.min(5,n-i); h+=`<span class="tg${k===5?" five":""}">${"<i></i>".repeat(Math.min(k,4))}</span>`; }
+  return `<span class="tally">${h}</span>`;
+}
+function renderLines(){
+  const t=T(), L=$("#lines");
+  const ids=Object.keys(t.items);
+  if(!ids.length){ L.innerHTML=`<div class="empty">Noch leer.<br>Links antippen – jeder Tipp ist ein Strich.</div>`; }
+  else L.innerHTML=ids.map(id=>{ const p=lineItem(t,id), q=t.items[id];
+    return `<div class="line"><div class="ln">${esc(p.name)}</div>
+      <div class="ctl"><button class="step" data-m="${id}">−</button><span class="qty num">${q}</span><button class="step plus" data-p="${id}">+</button></div>
+      <div class="lt">${tallyHtml(q)}<span class="num">à ${eur(p.price)} = <b>${eur(p.price*q)}</b></span></div></div>`; }).join("");
+  L.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>add(b.dataset.m,-1));
+  L.querySelectorAll("[data-p]").forEach(b=>b.onclick=()=>add(b.dataset.p,1));
+  $("#bTotal").textContent=eur(tabTotal(t));
+  $("#btnPay").disabled=!ids.length;
+  $("#btnCloseEmpty").textContent=ids.length?"Löschen":"Schließen";
+}
+
+function add(id,d,silent){
+  const t=T(); if(!t) return;
+  const q=(t.items[id]||0)+d; if(q<0) return;
+  if(d>0 && !t.meta[id]) { const p=PRODUCTS[id]; t.meta[id]={name:p.name,price:p.price}; }
+  if(q===0){ delete t.items[id]; } else t.items[id]=q;
+  S.stats[id]=Math.max(0,(S.stats[id]||0)+d);
+  save(); renderGrid(); renderLines();
+  if(!silent && d>0){ undoStack.push({tab:t.id,id}); toast(`+1 ${lineItem(t,id).name}`); }
+}
+let toastTimer;
+function toast(msg,undo=true){
+  $("#toastMsg").textContent=msg; $("#toastUndo").style.display=undo?"":"none";
+  $("#toast").classList.add("show"); clearTimeout(toastTimer); toastTimer=setTimeout(hideToast,3500);
+}
+function hideToast(){ $("#toast").classList.remove("show"); }
+$("#toastUndo").onclick=()=>{ const u=undoStack.pop(); if(u&&u.tab===cur) add(u.id,-1,true); hideToast(); };
+
+function customDialog(){
+  modal(`<h2>Freier Artikel</h2><p class="hint">Für Zigarren, Sonderwünsche oder Preise, die nicht auf der Karte stehen.</p>
+    <input class="field" id="cn" placeholder="Bezeichnung, z. B. Zigarre Cohiba" autocomplete="off">
+    <input class="field num" id="cp" style="margin-top:10px" inputmode="decimal" placeholder="Preis in €, z. B. 14,50">
+    <label style="display:flex;gap:10px;align-items:center;margin-top:12px;color:var(--muted);font-size:14px"><input type="checkbox" id="ck" checked style="width:22px;height:22px"> unter „Eigene“ für später speichern</label>
+    <div class="row"><button class="btn" id="cx">Abbrechen</button><button class="btn pri" id="ok">Hinzufügen</button></div>`);
+  setTimeout(()=>$("#cn").focus(),50);
+  $("#cx").onclick=closeModal;
+  $("#ok").onclick=()=>{
+    const n=$("#cn").value.trim(), p=parseFloat($("#cp").value.replace(",","."));
+    if(!n||!(p>=0)) { $("#cp").style.borderColor="var(--red2)"; return; }
+    let id="c-"+slug(n);
+    if($("#ck").checked){ S.custom=S.custom.filter(c=>c.id!==id); S.custom.push({id,name:n,price:p,desc:"eigener Artikel"}); }
+    else { id="x-"+uid(); }
+    PRODUCTS[id]={id,name:n,price:p,desc:"",cat:"Eigene"};
+    const t=T(); t.meta[id]={name:n,price:p};
+    closeModal(); buildCatalog(); if(!PRODUCTS[id]) PRODUCTS[id]={id,name:n,price:p,desc:"",cat:"Eigene"};
+    add(id,1); renderCats();
+  };
+}
+
+$("#btnRename").onclick=()=>{ const t=T();
+  nameDialog({title:"Name ändern",hint:"Neuer Name für diesen Deckel.",value:t.name,okLabel:"Speichern",onOk:v=>{ if(!v) return; t.name=v; rememberName(v); save(); renderTab(); }}); };
+
+$("#btnMove").onclick=()=>{ const t=T();
+  modal(`<h2>Umsetzen</h2><p class="hint">${esc(t.name)} sitzt jetzt wo?</p>
+    <div class="areas">${AREAS.map(a=>`<button data-a="${a.id}" class="${a.id===t.area?"cur":""}">${a.name}</button>`).join("")}</div>
+    ${S.tabs.length>1?`<h4>… oder mit anderem Deckel zusammenlegen</h4><div class="sugg">${S.tabs.filter(x=>x.id!==t.id).map(x=>`<button data-j="${x.id}">${esc(x.name)} · ${AREAS.find(a=>a.id===x.area).name}</button>`).join("")}</div>`:""}
+    <div class="row"><button class="btn" id="cx">Abbrechen</button></div>`);
+  $("#cx").onclick=closeModal;
+  document.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>{ t.area=b.dataset.a; save(); closeModal(); renderTab(); });
+  document.querySelectorAll("[data-j]").forEach(b=>b.onclick=()=>{
+    const o=S.tabs.find(x=>x.id===b.dataset.j);
+    Object.entries(t.items).forEach(([id,q])=>{ o.items[id]=(o.items[id]||0)+q; if(!o.meta[id]) o.meta[id]=t.meta[id]; });
+    S.tabs=S.tabs.filter(x=>x.id!==t.id); save(); closeModal(); openTab(o.id); toast(`Zu ${o.name} verschoben`,false);
+  });
+};
+
+$("#btnCloseEmpty").onclick=()=>{ const t=T();
+  if(!Object.keys(t.items).length){ S.tabs=S.tabs.filter(x=>x.id!==t.id); save(); closeTab(); return; }
+  modal(`<h2>Deckel löschen?</h2><p class="hint">${esc(t.name)} hat noch ${eur(tabTotal(t))} offen. Löschen heißt: <b>nicht kassiert</b> (z. B. Fehleingabe, aufs Haus).</p>
+    <div class="row"><button class="btn" id="cx">Abbrechen</button><button class="btn pri" id="ok">Ja, löschen</button></div>`);
+  $("#cx").onclick=closeModal;
+  $("#ok").onclick=()=>{ Object.entries(t.items).forEach(([id,q])=>S.stats[id]=Math.max(0,(S.stats[id]||0)-q)); S.tabs=S.tabs.filter(x=>x.id!==t.id); save(); closeModal(); closeTab(); };
+};
+
+/* ---------- Abrechnen (auch getrennt) ---------- */
+$("#btnPay").onclick=()=>payDialog();
+function payDialog(){
+  const t=T(); const sel={...t.items}; let given=null;
+  const draw=()=>{
+    const ids=Object.keys(t.items);
+    const sum=ids.reduce((s,id)=>s+lineItem(t,id).price*(sel[id]||0),0);
+    const all=ids.every(id=>(sel[id]||0)===t.items[id]);
+    const opts=[...new Set([sum, Math.ceil(sum/5)*5, Math.ceil(sum/10)*10, Math.ceil(sum/50)*50].filter(v=>v>=sum))].slice(0,4);
+    modal(`<h2>Abrechnen · ${esc(t.name)}</h2>
+      <p class="hint">Getrennt zahlen? Einfach Mengen mit − / + anpassen. Der Rest bleibt auf dem Deckel.</p>
+      <div class="paylines">${ids.map(id=>{const p=lineItem(t,id);return `<div class="pl"><div class="nm">${esc(p.name)}<small class="num">${sel[id]||0} von ${t.items[id]} · à ${eur(p.price)}</small></div>
+        <div class="pc"><button data-d="${id}">−</button><button data-u="${id}">+</button></div><div class="amt num">${eur(p.price*(sel[id]||0))}</div></div>`}).join("")}</div>
+      <div style="display:flex;gap:14px"><button class="link" id="sAll">alles</button><button class="link" id="sNone">nichts</button></div>
+      <div class="bigtotal"><span>${all?"Gesamt":"Teilbetrag"}</span><b class="num">${eur(sum)}</b></div>
+      <h4>Gegeben (optional, fürs Rückgeld)</h4>
+      <div class="cash">${opts.map(v=>`<button class="num${given===v?" on":""}" data-g="${v}">${eur(v)}</button>`).join("")}</div>
+      ${given!=null&&given>=sum?`<div class="change"><span>Rückgeld</span><b class="num">${eur(given-sum)}</b></div>`:""}
+      <div class="row"><button class="btn" id="cx">Abbrechen</button><button class="btn gold" id="ok" ${sum>0?"":"disabled"}>${all?"Bezahlt – Deckel schließen":"Teilbetrag bezahlt"}</button></div>`);
+    document.querySelectorAll("[data-d]").forEach(b=>b.onclick=()=>{ const id=b.dataset.d; sel[id]=Math.max(0,(sel[id]||0)-1); given=null; draw(); });
+    document.querySelectorAll("[data-u]").forEach(b=>b.onclick=()=>{ const id=b.dataset.u; sel[id]=Math.min(t.items[id],(sel[id]||0)+1); given=null; draw(); });
+    document.querySelectorAll("[data-g]").forEach(b=>b.onclick=()=>{ given=parseFloat(b.dataset.g); draw(); });
+    $("#sAll").onclick=()=>{ Object.assign(sel,t.items); given=null; draw(); };
+    $("#sNone").onclick=()=>{ ids.forEach(id=>sel[id]=0); given=null; draw(); };
+    $("#cx").onclick=closeModal;
+    $("#ok").onclick=()=>{
+      const lines=ids.filter(id=>sel[id]>0).map(id=>({name:lineItem(t,id).name,price:lineItem(t,id).price,qty:sel[id],id}));
+      S.paid.push({id:uid(),day:dayKey(),at:Date.now(),name:t.name,area:t.area,amount:sum,lines,partial:!all});
+      ids.forEach(id=>{ const r=t.items[id]-(sel[id]||0); if(r>0) t.items[id]=r; else delete t.items[id]; });
+      closeModal();
+      if(!Object.keys(t.items).length){ S.tabs=S.tabs.filter(x=>x.id!==t.id); save(); closeTab(); toast(`${t.name}: ${eur(sum)} kassiert ✓`,false); }
+      else { save(); renderTab(); toast(`Teilbetrag ${eur(sum)} kassiert ✓`,false); }
+    };
+  };
+  draw();
+}
+
+/* =========================================================
+   TAG & VERLAUF
+   ========================================================= */
+$("#btnDay").onclick=dayDialog;
+function dayDialog(){
+  const d=dayKey(), pays=S.paid.filter(p=>p.day===d).sort((a,b)=>b.at-a.at);
+  const sum=pays.reduce((s,p)=>s+p.amount,0);
+  const top={}; pays.forEach(p=>p.lines.forEach(l=>top[l.name]=(top[l.name]||0)+l.qty));
+  const topL=Object.entries(top).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const open=S.tabs.reduce((s,t)=>s+tabTotal(t),0);
+  modal(`<h2>Heute · ${new Date(d).toLocaleDateString("de-DE",{weekday:"long",day:"numeric",month:"long"})}</h2>
+    <p class="hint">Die Barnacht zählt bis 8 Uhr morgens zum Vortag.</p>
+    <div class="stats"><div class="stat"><small>Kassiert</small><b class="num">${eur(sum)}</b></div><div class="stat"><small>Noch offen</small><b class="num">${eur(open)}</b></div><div class="stat"><small>Zahlungen</small><b class="num">${pays.length}</b></div></div>
+    ${topL.length?`<h4>Renner heute</h4><div class="list">${topL.map(([n,q])=>`<div class="li"><span>${esc(n)}</span><span class="num">${q}×</span></div>`).join("")}</div>`:""}
+    <h4>Zahlungen</h4><div class="list">${pays.length?pays.map(p=>`<div class="li"><span>${timeStr(p.at)} · ${esc(p.name)}${p.partial?" (Teil)":""}</span><span class="num">${eur(p.amount)}</span></div>`).join(""):`<div class="li"><span>Noch nichts kassiert</span><span></span></div>`}</div>
+    <h4>Daten</h4>
+    <div class="row" style="margin-top:6px"><button class="btn" id="exp">Backup speichern</button><button class="btn" id="imp">Backup laden</button></div>
+    <div class="row"><button class="btn" id="resetFav">Favoriten zurücksetzen</button><button class="btn pri" id="cx">Schließen</button></div>
+    <input type="file" id="file" accept="application/json" hidden>`);
+  $("#cx").onclick=closeModal;
+  $("#exp").onclick=()=>{ const b=new Blob([JSON.stringify(S,null,1)],{type:"application/json"}); const a=document.createElement("a"); a.href=URL.createObjectURL(b); a.download=`prediger-deckel-${d}.json`; a.click(); };
+  $("#imp").onclick=()=>$("#file").click();
+  $("#file").onchange=e=>{ const f=e.target.files[0]; if(!f) return; f.text().then(txt=>{ try{ S=Object.assign({tabs:[],paid:[],stats:{},custom:[],regulars:[]},JSON.parse(txt)); save(); buildCatalog(); closeModal(); renderFloor(); toast("Backup geladen ✓",false);}catch(err){ alert("Datei konnte nicht gelesen werden."); } }); };
+  $("#resetFav").onclick=()=>{ if(confirm("Verkaufszähler für Favoriten auf Null setzen?")){ S.stats={}; save(); toast("Favoriten zurückgesetzt",false); } };
+}
+
+/* ---------- Start ---------- */
+load(); buildCatalog();
+// alte Verläufe (älter als 60 Tage) aufräumen
+const cutoff=Date.now()-60*864e5; S.paid=S.paid.filter(p=>p.at>cutoff);
+$("#today").textContent=new Date().toLocaleDateString("de-DE",{weekday:"long",day:"numeric",month:"long"});
+renderFloor();
+setInterval(()=>{ if(!cur) renderFloor(); },60000);
+</script>
+</body>
+</html>
