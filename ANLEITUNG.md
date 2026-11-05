@@ -56,6 +56,7 @@ Alle Mitarbeiter öffnen denselben Link auf Tablet oder Handy und melden sich mi
 | Auslage | **Kasse → ＋ Auslage**, z. B. Zitronen gekauft. Wird vom Bargeld abgezogen. |
 | Kassensturz | **Kasse** zeigt Bar / EC / PayPal, Auslagen, **Soll in Kasse** und was angeschrieben wurde. Die Nacht zählt bis 8 Uhr morgens zum Vortag. |
 | **Feierabend** | **Kasse → Feierabend · Tagesabschluss**: Wechselgeld Anfang, gezähltes Bargeld, Wechselgeld für morgen und optional die EC-Summe vom Terminal eintragen. Die App rechnet **Soll, Differenz und Entnahme** aus. Der Bericht wird im Blatt **„Abschlüsse“** gespeichert und lässt sich **per WhatsApp** verschicken. |
+| **Berichte per Mail** | Nach **jedem Kassensturz** kommt automatisch eine Mail mit Bericht + PDF. **Jeden Montag 12 Uhr** kommt die **Wochenübersicht** (alle Tage, Summen, Differenzen, *Tage ohne Kassensturz rot*, offene Schulden). Empfänger stehen im Blatt **„Einstellungen“** bei *Bericht an* (mehrere mit Komma trennen); abschalten mit `nein` bei *Tagesbericht per Mail* / *Wochenbericht per Mail*. |
 | Karte & Preise | **Kasse → Karte bearbeiten**, oder direkt in der Tabelle im Blatt **„Karte“** (z. B. neue Zigarrenpreise). Eine neue Zeile mit Kategorie `Zigarren` reicht, die ID darf leer bleiben. |
 
 **Kein Netz?** Oben steht dann *„Offline · 3 offen“*. Einfach weiterbuchen: Alles wird auf dem Gerät gemerkt und automatisch nachgeschickt.

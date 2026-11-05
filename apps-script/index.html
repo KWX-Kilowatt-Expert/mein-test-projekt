@@ -834,7 +834,7 @@ function closeDialog(day){
       const r2=x=>Math.round(x*100)/100, s0=isNaN(st)?0:st, f0=isNaN(fl)?0:fl, soll=r2(s0+f.bar-f.exp);
       const report={day, bar:f.bar, ec:f.ec, paypal:f.paypal, total:f.total, exp:f.exp, start:s0, soll, counted:c, diff:r2(c-soll),
         float:f0, take:r2(c-f0), ecTerm:isNaN(et)?null:et, debtNew:f.debtNew, debtPaid:f.debtPaid, openSum:f.openSum, openCount:f.openCount,
-        note:v.note.trim(), payCount:f.pays.length,
+        note:v.note.trim(), payCount:f.pays.length, timeStr:timeStr(Date.now()), dateLabel:new Date(day+"T12:00").toLocaleDateString("de-DE",{weekday:"long",day:"numeric",month:"long",year:"numeric"}),
         exps:f.exps.map(e=>[e.what,e.amount]), debts:f.newDebts.map(d=>[d.name,d.amount]), top:f.top};
       const pid=uid(); dispatch({t:"close",pid,report});
       reportDialog(V.closes.find(x=>x.id===pid)||Object.assign({id:pid,at:Date.now(),staff},report),day);
@@ -842,28 +842,9 @@ function closeDialog(day){
   };
   draw();
 }
-function reportText(r){
-  const L=(a,b)=>a.padEnd(22,".")+" "+b.padStart(11);
-  const e=n=>eur(n);
-  const d=new Date(r.day+"T12:00").toLocaleDateString("de-DE",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
-  const out=[
-    "PREDIGER · TAGESABSCHLUSS", d, `Abgeschlossen ${timeStr(r.at)} von ${r.staff||"–"}`, "",
-    "EINNAHMEN ("+r.payCount+" Zahlungen)", L("Bar",e(r.bar)), L("EC-Karte",e(r.ec)), L("PayPal",e(r.paypal)), L("Gesamt",e(r.total)),
-    r.debtPaid?L("davon Schulden bezahlt",e(r.debtPaid)):null, "",
-    "KASSE (BAR)", L("Wechselgeld Anfang",e(r.start)), L("+ Bar-Einnahmen",e(r.bar)), L("− Auslagen",e(r.exp)), L("= Soll",e(r.soll)),
-    L("Gezählt",e(r.counted)), L("DIFFERENZ",(r.diff>0?"+":"")+e(r.diff)), L("Wechselgeld bleibt",e(r.float)), L("ENTNAHME",e(r.take)),
-  ];
-  if(r.ecTerm!=null) out.push("", L("EC laut Terminal",e(r.ecTerm)), L("EC laut App",e(r.ec)), L("Abweichung EC",e(r.ecTerm-r.ec)));
-  if(r.exps&&r.exps.length) out.push("", "AUSLAGEN", ...r.exps.map(([w,a])=>L(w.slice(0,22),e(a))));
-  if(r.debts&&r.debts.length) out.push("", "ANGESCHRIEBEN ("+e(r.debtNew)+")", ...r.debts.map(([n,a])=>L(n.slice(0,22),e(a))));
-  out.push("", L("Offene Deckel",r.openCount+" · "+e(r.openSum)));
-  if(r.top&&r.top.length) out.push("", "RENNER", ...r.top.map(([n,q])=>`${String(q).padStart(3)}× ${n}`));
-  if(r.note) out.push("", "NOTIZ: "+r.note);
-  return out.filter(x=>x!==null).join("\n");
-}
 function reportDialog(r,day){
-  const txt=reportText(r);
-  modal(`<h2>Bericht</h2><p class="hint">Gespeichert in der Google-Tabelle (Blatt „Abschlüsse“). Hier zum Verschicken:</p>
+  const txt=reportText(Object.assign({staff},r,{timeStr:r.timeStr||timeStr(r.at)}));
+  modal(`<h2>Bericht</h2><p class="hint">Gespeichert im Blatt „Abschlüsse“ und automatisch per E-Mail (mit PDF) an die Adresse aus dem Blatt „Einstellungen“ geschickt.</p>
     <textarea class="report" id="rT" readonly>${esc(txt)}</textarea>
     <div class="row"><a class="btn gold" style="text-align:center;text-decoration:none" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(txt)}">Per WhatsApp senden</a><button class="btn" id="rC">Kopieren</button></div>
     <div class="row"><button class="btn pri" id="cx">Fertig</button></div>`);

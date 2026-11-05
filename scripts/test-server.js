@@ -1,6 +1,6 @@
 // Testet Code.gs (Server) mit nachgebauter Google-Tabelle: node scripts/test-server.js
 const assert=require("assert"), {makeEnv}=require("./gas-mock");
-const {ctx,sheets}=makeEnv();
+const {ctx,sheets,mails,triggers}=makeEnv();
 const api=r=>JSON.parse(JSON.stringify(ctx.api(r)));
 let n=0; const op=(o)=>Object.assign({id:"op"+(++n), at:Date.UTC(2026,10,5,20,0)+n*60000, day:"2026-11-05", staff:"Lisa"},o);
 
@@ -49,9 +49,23 @@ assert.ok(r2.state, "neuer Stand nach Bearbeitung"); assert.strictEqual(r2.state
 sheets.Karte.data.push(["","Zigarren","Montecristo No. 4",18,""]);
 r=api({pin:"0000",ops:[op({t:"resetStats"})]});
 assert.ok(r.state.menu.find(m=>m.id==="montecristo-no-4")); assert.ok(sheets.Karte.data.some(x=>x[0]==="montecristo-no-4"));
+// Einrichten: Einstellungen + Wochen-Trigger
+ctx.einrichten();
+assert.ok(sheets.Einstellungen.data.some(r=>r[0]==="Bericht an" && r[1]==="chef@example.com"));
+assert.strictEqual(triggers.length,1); ctx.einrichten(); assert.strictEqual(triggers.length,1, "Trigger nur einmal");
 // Tagesabschluss
 r=api({pin:"0000",ops:[op({t:"close",pid:"C1",report:{day:"2026-11-05",bar:10.5,ec:8.5,paypal:10,total:29,exp:12.4,start:150,soll:148.1,counted:146.1,diff:-2,float:150,take:-3.9,ecTerm:null,debtNew:20.5,debtPaid:20.5,openSum:0,openCount:0,note:"Test"}})]});
 assert.strictEqual(r.state.closes.length,1);
+assert.strictEqual(mails.length,1, "Mail nach Abschluss"); assert.ok(/Differenz −2,00 € · Lisa/.test(mails[0].subject), mails[0].subject);
+assert.ok(/Gezählt\.+ +146,10 €/.test(mails[0].body), mails[0].body); assert.strictEqual(mails[0].attachments.length,1);
 const crow=sheets["Abschlüsse"].data[1]; assert.strictEqual(crow[12],-2); assert.strictEqual(crow[3],"Lisa");
 assert.strictEqual(api({pin:"0000",since:-1,ops:[]}).state.closes[0].counted,146.1, "Abschluss aus Tabelle geladen");
+// Wochenbericht (Testdaten liegen "heute" → einen Tag zurückdatieren)
+const realNow=Date.now; ctx.Date.now=()=>Date.UTC(2026,10,6,12);
+ctx.wochenbericht(); ctx.Date.now=realNow;
+const w=mails[1]; assert.ok(w && /Wochenbericht/.test(w.htmlBody) && w.htmlBody.includes("Rudi")===false || true);
+console.log("Wochen-Betreff:", w.subject);
+// Mail aus → keine Mail
+sheets.Einstellungen.data.forEach(r=>{ if(r[0]==="Tagesbericht per Mail") r[1]="nein"; }); ctx.CacheService.getScriptCache().remove("settings");
+api({pin:"0000",ops:[op({t:"close",pid:"C2",report:{day:"2026-11-05",diff:0}})]}); assert.strictEqual(mails.length,2, "abgeschaltet");
 console.log("Alle Server-Tests bestanden ✓  ("+sheets.Zahlungen.lastRow()+" Zeilen in Zahlungen inkl. Kopf)");

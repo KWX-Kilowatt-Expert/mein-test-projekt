@@ -22,7 +22,7 @@ class Sheet{
   setFrozenRows(){}
 }
 function makeEnv(){
-  const sheets={}, props={}, cache={};
+  const sheets={}, props={}, cache={}, mails=[], triggers=[];
   const SS={ getSheetByName:n=>sheets[n]||null, insertSheet:n=>(sheets[n]=new Sheet(n)), getSpreadsheetTimeZone:()=>"Europe/Berlin" };
   const pad=n=>String(n).padStart(2,"0");
   const ctx={
@@ -32,12 +32,17 @@ function makeEnv(){
     CacheService:{ getScriptCache:()=>({ get:k=>k in cache?cache[k]:null, put:(k,v)=>{cache[k]=v;}, remove:k=>{delete cache[k];},
       getAll:ks=>{ const o={}; ks.forEach(k=>{ if(k in cache) o[k]=cache[k]; }); return o; }, putAll:o=>Object.assign(cache,o) }) },
     LockService:{ getScriptLock:()=>({ waitLock(){}, releaseLock(){} }) },
-    Utilities:{ formatDate:(d,tz,f)=>{ // Testrechner läuft in UTC; reicht für Tests
-      return f.replace("yyyy",d.getFullYear()).replace("MM",pad(d.getMonth()+1)).replace("dd",pad(d.getDate())).replace("HH",pad(d.getHours())).replace("mm",pad(d.getMinutes())); } },
+    Utilities:{ newBlob:(c,t,n)=>({getAs:()=>({setName(x){ this.name=x; return this; }})}),
+      formatDate:(d,tz,f)=>{ // Testrechner läuft in UTC; reicht für Tests
+      return f.replace("yyyy",d.getFullYear()).replace("MM",pad(d.getMonth()+1)).replace("dd",pad(d.getDate())).replace("EEE",["So","Mo","Di","Mi","Do","Fr","Sa"][d.getDay()]).replace("HH",pad(d.getHours())).replace("mm",pad(d.getMinutes())); } },
     Logger:{ log(){} },
+    Session:{ getEffectiveUser:()=>({ getEmail:()=>"chef@example.com" }) },
+    MailApp:{ sendEmail:o=>mails.push(o) },
+    ScriptApp:{ WeekDay:{MONDAY:"MONDAY"}, getProjectTriggers:()=>triggers,
+      newTrigger:h=>{ const b={timeBased:()=>b,onWeekDay:()=>b,atHour:()=>b,inTimezone:()=>b,create:()=>{ triggers.push({getHandlerFunction:()=>h}); }}; return b; } },
   };
   vm.createContext(ctx);
   vm.runInContext(fs.readFileSync(path.join(__dirname,"..","apps-script","Code.gs"),"utf8"), ctx);
-  return {ctx, sheets, props, cache};
+  return {ctx, sheets, props, cache, mails, triggers};
 }
 module.exports={makeEnv};

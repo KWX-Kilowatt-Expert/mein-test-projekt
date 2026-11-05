@@ -157,6 +157,27 @@ function applyOp(s, op){
       var rep=op.report||{}; rep.id=op.pid; rep.at=op.at; rep.staff=op.staff||""; s.closes.push(rep); return;
   }
 }
+
+function fmtE(n){
+  n=Number(n)||0; var neg=n<-0.004; var p=Math.abs(Math.round(n*100)/100).toFixed(2).split(".");
+  p[0]=p[0].replace(/\B(?=(\d{3})+(?!\d))/g,"."); return (neg?"−":"")+p[0]+","+p[1]+" €";
+}
+/** Text-Bericht zum Tagesabschluss (Browser, Mail und PDF nutzen denselben Text). */
+function reportText(r){
+  function L(a,b){ a=String(a); b=String(b); while(a.length<22) a+="."; while(b.length<11) b=" "+b; return a+" "+b; }
+  var out=["PREDIGER · TAGESABSCHLUSS", r.dateLabel||r.day, "Abgeschlossen "+(r.timeStr||"")+" von "+(r.staff||"–"), "",
+    "EINNAHMEN ("+(r.payCount||0)+" Zahlungen)", L("Bar",fmtE(r.bar)), L("EC-Karte",fmtE(r.ec)), L("PayPal",fmtE(r.paypal)), L("Gesamt",fmtE(r.total))];
+  if(r.debtPaid) out.push(L("davon Schulden bezahlt",fmtE(r.debtPaid)));
+  out.push("", "KASSE (BAR)", L("Wechselgeld Anfang",fmtE(r.start)), L("+ Bar-Einnahmen",fmtE(r.bar)), L("− Auslagen",fmtE(r.exp)), L("= Soll",fmtE(r.soll)),
+    L("Gezählt",fmtE(r.counted)), L("DIFFERENZ",(r.diff>0.004?"+":"")+fmtE(r.diff)), L("Wechselgeld bleibt",fmtE(r.float)), L("ENTNAHME",fmtE(r.take)));
+  if(r.ecTerm!==null && r.ecTerm!==undefined) out.push("", L("EC laut Terminal",fmtE(r.ecTerm)), L("EC laut App",fmtE(r.ec)), L("Abweichung EC",fmtE(r.ecTerm-r.ec)));
+  if(r.exps && r.exps.length){ out.push("","AUSLAGEN"); r.exps.forEach(function(x){ out.push(L(String(x[0]).slice(0,22),fmtE(x[1]))); }); }
+  if(r.debts && r.debts.length){ out.push("","ANGESCHRIEBEN ("+fmtE(r.debtNew)+")"); r.debts.forEach(function(x){ out.push(L(String(x[0]).slice(0,22),fmtE(x[1]))); }); }
+  out.push("", L("Offene Deckel",(r.openCount||0)+" · "+fmtE(r.openSum)));
+  if(r.top && r.top.length){ out.push("","RENNER"); r.top.forEach(function(x){ var q=String(x[1]); while(q.length<3) q=" "+q; out.push(q+"× "+x[0]); }); }
+  if(r.note) out.push("", "NOTIZ: "+r.note);
+  return out.join("\n");
+}
 // ===== SHARED END =====
 
 var TZ = "Europe/Berlin";
@@ -183,7 +204,7 @@ function doGet(){
 
 /** Liefert den gemeinsamen Code für den Browser (wird in index.html eingesetzt). */
 function sharedSource(){
-  var fns=[r2,slug,menuSeed,emptyState,areaName,tabTotal,findBy,addRegular,bumpStat,applyOp];
+  var fns=[r2,slug,menuSeed,emptyState,areaName,tabTotal,findBy,addRegular,bumpStat,applyOp,fmtE,reportText];
   return "var AREAS="+JSON.stringify(AREAS)+";\nvar METHODS="+JSON.stringify(METHODS)+";\nvar MENU_CATS="+JSON.stringify(MENU_CATS)+
     ";\nvar DEFAULT_FAVS="+JSON.stringify(DEFAULT_FAVS)+";\n"+fns.map(String).join("\n");
 }
@@ -191,14 +212,21 @@ function sharedSource(){
 /** Einmal im Editor ausführen: legt alle Blätter an und fragt die Berechtigungen ab. */
 function einrichten(){
   Object.keys(DEF).forEach(sheet_);
+  var me=""; try{ me=Session.getEffectiveUser().getEmail(); }catch(e){}
+  ensureSetting_("Bericht an", me);
+  ensureSetting_("Tagesbericht per Mail", "ja");
+  ensureSetting_("Wochenbericht per Mail", "ja");
+  CacheService.getScriptCache().remove("settings");
+  var has=ScriptApp.getProjectTriggers().some(function(t){ return t.getHandlerFunction()==="wochenbericht"; });
+  if(!has) ScriptApp.newTrigger("wochenbericht").timeBased().onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(12).inTimezone(TZ).create();
   var L=load_(); save_(L.s,L.snap);
   bumpRev_();
-  Logger.log("Fertig. PIN steht im Blatt »Einstellungen« (Standard 0000 – bitte ändern!).");
+  Logger.log("Fertig. PIN und E-Mail-Empfänger stehen im Blatt »Einstellungen«. Wochenbericht: montags 12 Uhr.");
 }
 
 /** Bei Änderungen direkt in der Tabelle (z. B. Zigarrenpreise) die Geräte neu laden lassen. */
 function onEdit(){
-  try{ bumpRev_(); CacheService.getScriptCache().remove("pin"); }catch(e){}
+  try{ bumpRev_(); CacheService.getScriptCache().remove("settings"); }catch(e){}
 }
 
 /**
@@ -220,18 +248,21 @@ function api(req){
   try{
     var cache=CacheService.getScriptCache();
     var seen=cache.getAll(ops.map(function(o){ return "op_"+o.id; }));
-    var L=load_(), done={};
+    var L=load_(), done={}; var newCloses=[];
     ops.forEach(function(op){
       if(seen["op_"+op.id]) return;          // schon verarbeitet (Wiederholung nach Netzfehler)
       try{ applyOp(L.s,op); }catch(e){ console.error(e); }
       done["op_"+op.id]="1";
     });
     save_(L.s,L.snap);
+    newCloses=(L.s.closes||[]).filter(function(c){ return !L.snap.closeIds[c.id]; });
     if(Object.keys(done).length) cache.putAll(done,21600);
     var r=bumpRev_();
     SpreadsheetApp.flush();
+    lock.releaseLock();
+    newCloses.forEach(function(c){ try{ sendCloseMail_(c); }catch(e){ console.error("Mail fehlgeschlagen", e); } });
     return {ok:true, rev:r, state:L.s};
-  } finally { lock.releaseLock(); }
+  } finally { try{ lock.releaseLock(); }catch(e){} }
 }
 
 /* ---------------- Tabelle lesen / schreiben ---------------- */
@@ -264,12 +295,17 @@ function bumpRev_(){
   var p=PropertiesService.getScriptProperties(), r=Number(p.getProperty("rev")||1)+1;
   p.setProperty("rev",String(r)); return r;
 }
-function pin_(){
-  var c=CacheService.getScriptCache(), v=c.get("pin");
-  if(v!==null) return v;
-  v="0000";
-  rows_("Einstellungen").forEach(function(r){ if(String(r[0]).trim().toUpperCase()==="PIN") v=String(r[1]).trim(); });
-  c.put("pin",v,300); return v;
+function settings_(){
+  var c=CacheService.getScriptCache(), v=c.get("settings");
+  if(v) return JSON.parse(v);
+  var o={}; rows_("Einstellungen").forEach(function(r){ o[String(r[0]).trim().toLowerCase()]=String(r[1]).trim(); });
+  c.put("settings",JSON.stringify(o),300); return o;
+}
+function pin_(){ return settings_()["pin"]||"0000"; }
+function ensureSetting_(key,val){
+  var sh=sheet_("Einstellungen");
+  var has=rows_("Einstellungen").some(function(r){ return String(r[0]).trim().toLowerCase()===key.toLowerCase(); });
+  if(!has) sh.getRange(sh.getLastRow()+1,1,1,2).setValues([[key,val]]);
 }
 function num_(v){ if(typeof v==="number") return v; var n=parseFloat(String(v).replace(/[^\d,.\-]/g,"").replace(",",".")); return isNaN(n)?0:n; }
 function day_(v){ return (v instanceof Date) ? Utilities.formatDate(v, ss_().getSpreadsheetTimeZone(), "yyyy-MM-dd") : String(v); }
@@ -352,4 +388,62 @@ function save_(s,snap){
     return [c.id, c.day, fmt_(c.at,"HH:mm"), c.staff, c.bar, c.ec, c.paypal, c.total, c.exp, c.start, c.soll, c.counted, c.diff, c.float, c.take,
             c.ecTerm===null||c.ecTerm===undefined?"":c.ecTerm, c.debtNew, c.debtPaid, c.openSum, c.note||"", JSON.stringify(c)];
   }));
+}
+
+/* ---------------- Berichte per E-Mail ---------------- */
+function recipients_(){ return (settings_()["bericht an"]||"").split(/[,;\s]+/).filter(function(x){ return x.indexOf("@")>0; }).join(","); }
+function isOn_(key){ return String(settings_()[key]||"ja").toLowerCase()!=="nein"; }
+function esc_(t){ return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function pdf_(html,name){ return Utilities.newBlob(html,"text/html",name+".html").getAs("application/pdf").setName(name+".pdf"); }
+function page_(title,body){
+  return '<html><head><meta charset="utf-8"><style>body{font-family:Arial,sans-serif;color:#222;margin:24px}h1{font-size:20px;color:#8e2a23;margin:0 0 4px}'+
+    'pre{font-family:Consolas,Menlo,monospace;font-size:13px;line-height:1.45;background:#f7f2e8;padding:14px;border-radius:8px}'+
+    'table{border-collapse:collapse;font-size:12px;width:100%}th,td{border:1px solid #ccc;padding:5px 6px;text-align:right}th{background:#f0e6d2}td:first-child,th:first-child,td:nth-child(2),th:nth-child(2),td:nth-child(10),th:nth-child(10){text-align:left}'+
+    '.miss{background:#fde3dd}.neg{color:#b3261e;font-weight:bold}.small{color:#777;font-size:11px}</style></head><body><h1>'+esc_(title)+'</h1>'+body+'</body></html>';
+}
+
+/** Wird nach jedem Tagesabschluss automatisch aufgerufen. */
+function sendCloseMail_(c){
+  var to=recipients_(); if(!to || !isOn_("tagesbericht per mail")) return;
+  var txt=reportText(c);
+  var d=Utilities.formatDate(new Date(c.day+"T12:00:00"),TZ,"dd.MM.");
+  var subj="Prediger · Abschluss "+d+" · Differenz "+(c.diff>0.004?"+":"")+fmtE(c.diff)+" · "+(c.staff||"");
+  var html=page_("Tagesabschluss "+d, "<pre>"+esc_(txt)+"</pre>");
+  MailApp.sendEmail({to:to, subject:subj, body:txt, htmlBody:html, name:"Prediger Deckel", attachments:[pdf_(html,"Prediger_Abschluss_"+c.day)]});
+}
+
+/** Wochenübersicht (läuft montags automatisch; kann im Editor auch von Hand gestartet werden). */
+function wochenbericht(){
+  if(!isOn_("wochenbericht per mail")) return;
+  var to=recipients_(); if(!to) return;
+  var days=[]; for(var i=7;i>=1;i--) days.push(Utilities.formatDate(new Date(Date.now()-i*864e5),TZ,"yyyy-MM-dd"));
+  var inRange=function(d){ return days.indexOf(d)>=0; };
+  var closes={}; rows_("Abschlüsse").forEach(function(r){ var d=day_(r[1]); if(inRange(d)){ var o=json_(r[20],{}); o.staff=String(r[3]||o.staff||""); if(!closes[d]||o.at>closes[d].at) closes[d]=o; } });
+  var sales={}; rows_("Zahlungen").forEach(function(r){ var d=day_(r[1]); if(!inRange(d)) return; var m=methodKey_(r[5]); sales[d]=sales[d]||{bar:0,ec:0,paypal:0}; sales[d][m]=(sales[d][m]||0)+num_(r[6]); });
+  var exps={}; rows_("Auslagen").forEach(function(r){ var d=day_(r[1]); if(inRange(d)) exps[d]=(exps[d]||0)+num_(r[4]); });
+  var T={bar:0,ec:0,paypal:0,total:0,exp:0,diff:0,take:0}, rows="", missing=0;
+  days.forEach(function(d){
+    var c=closes[d], s=sales[d]; if(!c && !s && !exps[d]) return;
+    var label=Utilities.formatDate(new Date(d+"T12:00:00"),TZ,"EEE dd.MM.");
+    var v=c||{bar:r2(s?s.bar:0),ec:r2(s?s.ec:0),paypal:r2(s?s.paypal:0),exp:r2(exps[d]||0)};
+    v.total=r2((v.bar||0)+(v.ec||0)+(v.paypal||0));
+    ["bar","ec","paypal","total","exp"].forEach(function(k){ T[k]+=v[k]||0; });
+    if(c){ T.diff+=c.diff||0; T.take+=c.take||0; } else missing++;
+    rows+='<tr'+(c?'':' class="miss"')+'><td>'+label+'</td><td>'+(c?esc_(c.staff||""):"⚠ kein Kassensturz")+'</td><td>'+fmtE(v.bar)+'</td><td>'+fmtE(v.ec)+'</td><td>'+fmtE(v.paypal)+
+      '</td><td><b>'+fmtE(v.total)+'</b></td><td>'+fmtE(v.exp)+'</td><td'+(c&&c.diff<-0.004?' class="neg"':'')+'>'+(c?(c.diff>0.004?"+":"")+fmtE(c.diff):"–")+'</td><td>'+(c?fmtE(c.take):"–")+'</td><td>'+(c&&c.note?esc_(c.note):"")+'</td></tr>';
+  });
+  var debts=rows_("Schulden").filter(function(r){ return String(r[5]||"offen")==="offen"; }).map(function(r){ return {name:String(r[1]), rest:num_(r[4]), since:String(r[6]||"")}; }).sort(function(a,b){ return b.rest-a.rest; });
+  var debtSum=debts.reduce(function(a,d){ return a+d.rest; },0);
+  var openTabs=rows_("Deckel");
+  var from=Utilities.formatDate(new Date(days[0]+"T12:00:00"),TZ,"dd.MM."), till=Utilities.formatDate(new Date(days[6]+"T12:00:00"),TZ,"dd.MM.yyyy");
+  var body='<p class="small">'+from+' – '+till+(missing?' · <span class="neg">'+missing+' Tag(e) ohne Kassensturz</span>':' · alle Tage abgeschlossen ✓')+'</p>'+
+    (rows?'<table><tr><th>Tag</th><th>Kassensturz von</th><th>Bar</th><th>EC</th><th>PayPal</th><th>Gesamt</th><th>Auslagen</th><th>Differenz</th><th>Entnahme</th><th>Notiz</th></tr>'+rows+
+    '<tr><th>Summe</th><th></th><th>'+fmtE(T.bar)+'</th><th>'+fmtE(T.ec)+'</th><th>'+fmtE(T.paypal)+'</th><th>'+fmtE(T.total)+'</th><th>'+fmtE(T.exp)+'</th><th>'+(T.diff>0.004?"+":"")+fmtE(T.diff)+'</th><th>'+fmtE(T.take)+'</th><th></th></tr></table>'
+    :'<p>Keine Umsätze in dieser Woche.</p>')+
+    '<h1 style="font-size:16px;margin-top:22px">Offene Schulden: '+fmtE(debtSum)+'</h1>'+
+    (debts.length?'<table><tr><th>Name</th><th>seit</th><th>offen</th></tr>'+debts.map(function(d){ return '<tr><td>'+esc_(d.name)+'</td><td>'+esc_(d.since)+'</td><td>'+fmtE(d.rest)+'</td></tr>'; }).join("")+'</table>':'<p>Keine.</p>')+
+    '<p class="small">Gerade offene Deckel: '+openTabs.length+'. Details stehen in der Google-Tabelle.</p>';
+  var html=page_("Prediger · Wochenbericht", body);
+  var subj="Prediger · Woche "+from+"–"+till+" · "+fmtE(T.total)+(missing?" · ⚠ "+missing+"× kein Kassensturz":"")+" · Diff "+(T.diff>0.004?"+":"")+fmtE(T.diff);
+  MailApp.sendEmail({to:to, subject:subj, htmlBody:html, name:"Prediger Deckel", attachments:[pdf_(html,"Prediger_Woche_"+days[6])]});
 }
