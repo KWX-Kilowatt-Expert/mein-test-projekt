@@ -200,6 +200,8 @@ h4{margin:16px 0 6px;font-size:12px;letter-spacing:.1em;text-transform:uppercase
 .tools{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
 .danger{color:#f0a58f}
 .report{width:100%;height:46vh;margin-top:6px;padding:12px;border-radius:12px;border:1px solid var(--line);background:#0f0b08;color:var(--ink);font:13px/1.45 ui-monospace,Menlo,Consolas,monospace;resize:vertical;user-select:text;-webkit-user-select:text}
+.catpick button.on{border-color:var(--gold);color:var(--gold2);background:#2e2416}
+.catpick button[data-new]{border-style:dashed;color:var(--muted);font-family:var(--sans);font-size:15px}
 .err{color:#f0a58f;font-size:14px;margin-top:8px;min-height:18px}
 
 @media (max-width:1250px){ .sub{display:none} }
@@ -580,18 +582,36 @@ function toast(msg,undo=true){
 function hideToast(){ $("#toast").classList.remove("show"); }
 $("#toastUndo").onclick=()=>{ const u=undoStack.pop(); if(u && u.tab===cur) addItem(u.id,-1,null,true); hideToast(); };
 
+/* Kategorie-Auswahl zum Antippen (statt Auswahlliste – klappt auch am Handy) */
+function catPicker(id,current){
+  const cats=[...new Set([...catList(),"Zigarren"])];
+  if(current && !cats.includes(current)) cats.push(current);
+  return `<div id="${id}-wrap"><input type="hidden" id="${id}" value="${esc(current||"")}">
+    <div class="sugg catpick">${cats.map(c=>`<button type="button" data-pick="${id}" data-v="${esc(c)}" class="${c===current?"on":""}">${esc(c)}</button>`).join("")}
+    <button type="button" data-pick="${id}" data-new="1">+ Neue Kategorie</button></div>
+    <input class="field" id="${id}-new" placeholder="Name der neuen Kategorie" autocomplete="off" style="display:none;margin-top:8px;font-size:17px"></div>`;
+}
+function wireCatPicker(id){
+  const hid=$("#"+id), nw=$("#"+id+"-new");
+  $$(`[data-pick="${id}"]`).forEach(b=>b.onclick=()=>{
+    $$(`[data-pick="${id}"]`).forEach(x=>x.classList.remove("on")); b.classList.add("on");
+    if(b.dataset.new){ nw.style.display=""; nw.focus(); hid.value=nw.value.trim(); }
+    else { nw.style.display="none"; hid.value=b.dataset.v; }
+  });
+  nw.oninput=()=>{ hid.value=nw.value.trim(); };
+}
 function customDialog(){
   const cats=catList();
   modal(`<h2>Freier Artikel</h2><p class="hint">Für Zigarren, Sonderwünsche oder Preise, die nicht auf der Karte stehen.</p>
     <input class="field" id="cn" placeholder="Bezeichnung, z. B. Zigarre Cohiba Siglo II" autocomplete="off">
     <input class="field num" id="cp" style="margin-top:10px" inputmode="decimal" placeholder="Preis in €, z. B. 14,50">
     <label style="display:flex;gap:10px;align-items:center;margin-top:14px;font-size:15px"><input type="checkbox" id="ck" checked style="width:22px;height:22px"> fest in die Karte aufnehmen, Kategorie:</label>
-    <input class="field" id="cc" list="catlist" value="Zigarren" style="margin-top:8px;font-size:17px">
-    <datalist id="catlist">${["Zigarren",...cats.filter(c=>c!=="Zigarren")].map(c=>`<option value="${esc(c)}">`).join("")}</datalist>
+    ${catPicker("cc", curCat!=="★"&&cats.includes(curCat)?curCat:"Zigarren")}
     <div class="err" id="ce"></div>
     <div class="row"><button class="btn" id="cx">Abbrechen</button><button class="btn pri" id="ok">Hinzufügen</button></div>`);
   focusLater("#cn",50);
-  $("#ck").onchange=()=>{ $("#cc").style.display=$("#ck").checked?"":"none"; };
+  wireCatPicker("cc");
+  $("#ck").onchange=()=>{ $("#cc-wrap").style.display=$("#ck").checked?"":"none"; };
   $("#cx").onclick=()=>closeModal();
   $("#ok").onclick=()=>{
     const n=$("#cn").value.trim(), p=parseEur($("#cp").value);
@@ -884,12 +904,12 @@ function itemDialog(m,cat){
   const isNew=!m; m=m||{id:"m-"+uid(),cat,name:"",price:"",desc:""};
   modal(`<h2>${isNew?"Neuer Artikel":"Artikel ändern"}</h2>
     <span class="lbl">Name</span><input class="field" id="in" value="${esc(m.name)}" autocomplete="off">
-    <div class="cols2"><div><span class="lbl">Preis €</span><input class="field num" id="ip" inputmode="decimal" value="${m.price===""?"":numIn(m.price)}"></div>
-    <div><span class="lbl">Kategorie</span><input class="field" id="ic" list="catl" value="${esc(m.cat)}"></div></div>
-    <datalist id="catl">${["Zigarren",...catList()].map(c=>`<option value="${esc(c)}">`).join("")}</datalist>
+    <span class="lbl">Preis €</span><input class="field num" id="ip" inputmode="decimal" value="${m.price===""?"":numIn(m.price)}">
+    <span class="lbl">Kategorie</span>${catPicker("ic",m.cat)}
     <span class="lbl">Info (klein darunter)</span><input class="field" id="id" value="${esc(m.desc)}" style="font-size:16px;font-family:var(--sans);font-weight:400">
     <div class="err" id="ie"></div>
     <div class="row">${isNew?"":`<button class="btn danger" id="del">Löschen</button>`}<button class="btn" id="cx">Zurück</button><button class="btn pri" id="ok">Speichern</button></div>`);
+  wireCatPicker("ic");
   $("#cx").onclick=()=>menuDialog(cat);
   if($("#del")) $("#del").onclick=()=>{ if(confirm(`„${m.name}“ von der Karte nehmen? Offene Deckel behalten ihren Preis.`)){ dispatch({t:"menuDel",item:m.id}); menuDialog(cat); } };
   $("#ok").onclick=()=>{ const n=$("#in").value.trim(), p=parseEur($("#ip").value), c=$("#ic").value.trim()||"Sonstiges";
