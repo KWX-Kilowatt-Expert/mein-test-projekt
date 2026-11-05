@@ -646,7 +646,7 @@ function payDialog(){
         <div class="pc"><button data-d="${esc(id)}">−</button><button data-u="${esc(id)}">+</button></div><div class="amt num">${eur(p.price*(sel[id]||0))}</div></div>`}).join("")}</div>
       <div style="display:flex;gap:14px"><button class="link" id="sAll">alles</button><button class="link" id="sNone">nichts</button></div>
       <div class="bigtotal"><span>${all?"Gesamt":"Teilbetrag"}</span><b class="num">${eur(sum)}</b></div>
-      <span class="lbl">Zahlart</span>${methodBtns(method,true)}
+      <span class="lbl">Zahlart <span style="text-transform:none;letter-spacing:0">(nur zur Dokumentation – kassiert wird wie gewohnt am Terminal / per PayPal)</span></span>${methodBtns(method,true)}
       ${method==="bar"?`<span class="lbl">Gegeben (optional, fürs Rückgeld)</span>
         <div class="cash">${opts.map(v=>`<button class="num${given===v?" on":""}" data-g="${v}">${eur(v)}</button>`).join("")}</div>
         ${given!=null&&given>=sum?`<div class="change"><span>Rückgeld</span><b class="num">${eur(given-sum)}</b></div>`:""}`:""}

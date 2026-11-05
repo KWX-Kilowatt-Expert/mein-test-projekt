@@ -2,6 +2,7 @@
 
 Die App läuft kostenlos über **Google Sheets + Google Apps Script**.
 Alle Daten (Deckel, Zahlungen, Schulden, Auslagen, Karte) liegen in **einer Google-Tabelle** in eurem Konto.
+Es gibt **keine Anbindung** an Kartenterminal oder PayPal: Die App hält nur fest, wie bezahlt wurde (für den Kassenschnitt und zum Nachvollziehen).
 Alle Mitarbeiter öffnen denselben Link auf Tablet oder Handy und melden sich mit einer PIN an. Ein eigenes Google-Konto braucht niemand.
 
 ![Raumplan](docs/screenshots/raumplan.png)
