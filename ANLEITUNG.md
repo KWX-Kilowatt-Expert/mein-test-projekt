@@ -55,6 +55,7 @@ Alle Mitarbeiter öffnen denselben Link auf Tablet oder Handy und melden sich mi
 | Schulden | Knopf **Schulden** oben: alle Offenen nach Namen. Antippen → zahlen (auch in Raten). **＋ Anschreiben** für Schulden ohne Deckel. |
 | Auslage | **Kasse → ＋ Auslage**, z. B. Zitronen gekauft. Wird vom Bargeld abgezogen. |
 | Kassensturz | **Kasse** zeigt Bar / EC / PayPal, Auslagen, **Soll in Kasse** und was angeschrieben wurde. Die Nacht zählt bis 8 Uhr morgens zum Vortag. |
+| **Feierabend** | **Kasse → Feierabend · Tagesabschluss**: Wechselgeld Anfang, gezähltes Bargeld, Wechselgeld für morgen und optional die EC-Summe vom Terminal eintragen. Die App rechnet **Soll, Differenz und Entnahme** aus. Der Bericht wird im Blatt **„Abschlüsse“** gespeichert und lässt sich **per WhatsApp** verschicken. |
 | Karte & Preise | **Kasse → Karte bearbeiten**, oder direkt in der Tabelle im Blatt **„Karte“** (z. B. neue Zigarrenpreise). Eine neue Zeile mit Kategorie `Zigarren` reicht, die ID darf leer bleiben. |
 
 **Kein Netz?** Oben steht dann *„Offline · 3 offen“*. Einfach weiterbuchen: Alles wird auf dem Gerät gemerkt und automatisch nachgeschickt.

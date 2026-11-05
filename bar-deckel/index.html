@@ -199,6 +199,7 @@ h4{margin:16px 0 6px;font-size:12px;letter-spacing:.1em;text-transform:uppercase
 .daytabs button.on{border-color:var(--gold);color:var(--gold2)}
 .tools{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
 .danger{color:#f0a58f}
+.report{width:100%;height:46vh;margin-top:6px;padding:12px;border-radius:12px;border:1px solid var(--line);background:#0f0b08;color:var(--ink);font:13px/1.45 ui-monospace,Menlo,Consolas,monospace;resize:vertical;user-select:text;-webkit-user-select:text}
 .err{color:#f0a58f;font-size:14px;margin-top:8px;min-height:18px}
 
 @media (max-width:1250px){ .sub{display:none} }
@@ -291,7 +292,7 @@ function menuSeed(){
   var out=[]; MENU_CATS.forEach(function(c){ c[1].forEach(function(i){ out.push({id:slug(i[0]),cat:c[0],name:i[0],price:i[1],desc:i[2]}); }); });
   return out;
 }
-function emptyState(){ return {menu:[],tabs:[],debts:[],payments:[],expenses:[],stats:{},regulars:[]}; }
+function emptyState(){ return {menu:[],tabs:[],debts:[],payments:[],expenses:[],closes:[],stats:{},regulars:[]}; }
 function areaName(id){ for(var i=0;i<AREAS.length;i++) if(AREAS[i].id===id) return AREAS[i].name; return id; }
 function tabTotal(t){ var s=0; for(var id in t.items){ var m=t.meta[id]||{price:0}; s+=m.price*t.items[id]; } return r2(s); }
 function findBy(list,id){ for(var i=0;i<list.length;i++) if(list[i].id===id) return list[i]; return null; }
@@ -362,6 +363,9 @@ function applyOp(s, op){
       if(ex) s.menu[s.menu.indexOf(ex)]=clean; else s.menu.push(clean); return;
     case "menuDel": s.menu=s.menu.filter(function(x){ return x.id!==op.item; }); return;
     case "resetStats": s.stats={}; return;
+    case "close":
+      s.closes=s.closes||[]; if(findBy(s.closes,op.pid)) return;
+      var rep=op.report||{}; rep.id=op.pid; rep.at=op.at; rep.staff=op.staff||""; s.closes.push(rep); return;
   }
 }
 </script>
@@ -820,43 +824,138 @@ function debtNewDialog(){
    Kasse / Tagesübersicht
    ========================================================= */
 $("#btnDay").onclick=()=>dayDialog();
+function dayFigures(day){
+  const pays=V.payments.filter(p=>p.day===day).sort((a,b)=>b.at-a.at);
+  const by=k=>Math.round(pays.filter(p=>p.method===k).reduce((s,p)=>s+p.amount,0)*100)/100;
+  const exps=V.expenses.filter(e=>e.day===day).sort((a,b)=>b.at-a.at);
+  const newDebts=V.debts.filter(d=>dayKey(new Date(d.created))===day);
+  const top={}; pays.forEach(p=>(p.lines||[]).forEach(l=>top[l.name]=(top[l.name]||0)+l.qty));
+  newDebts.forEach(d=>(d.lines||[]).forEach(l=>top[l.name]=(top[l.name]||0)+l.qty));
+  const r2=x=>Math.round(x*100)/100;
+  return { pays, exps, newDebts,
+    bar:by("bar"), ec:by("ec"), paypal:by("paypal"),
+    total:r2(pays.reduce((s,p)=>s+p.amount,0)),
+    exp:r2(exps.reduce((s,e)=>s+e.amount,0)),
+    debtNew:r2(newDebts.reduce((s,d)=>s+d.amount,0)),
+    debtPaid:r2(pays.filter(p=>p.kind==="schulden").reduce((s,p)=>s+p.amount,0)),
+    openSum:r2(V.tabs.reduce((s,t)=>s+tabTotal(t),0)), openCount:V.tabs.length,
+    top:Object.entries(top).sort((a,b)=>b[1]-a[1]).slice(0,8) };
+}
 function dayDialog(day=dayKey()){
   const today=dayKey(), y=new Date(today+"T12:00"); y.setDate(y.getDate()-1);
   const yesterday=dayKey(new Date(y.getFullYear(),y.getMonth(),y.getDate(),12));
-  const pays=V.payments.filter(p=>p.day===day).sort((a,b)=>b.at-a.at);
-  const by=k=>pays.filter(p=>p.method===k).reduce((s,p)=>s+p.amount,0);
-  const exps=V.expenses.filter(e=>e.day===day).sort((a,b)=>b.at-a.at);
-  const expSum=exps.reduce((s,e)=>s+e.amount,0);
-  const newDebts=V.debts.filter(d=>dayKey(new Date(d.created))===day);
-  const total=pays.reduce((s,p)=>s+p.amount,0);
-  const top={}; pays.forEach(p=>(p.lines||[]).forEach(l=>top[l.name]=(top[l.name]||0)+l.qty));
-  newDebts.forEach(d=>(d.lines||[]).forEach(l=>top[l.name]=(top[l.name]||0)+l.qty));
-  const topL=Object.entries(top).sort((a,b)=>b[1]-a[1]).slice(0,8);
-  const open=V.tabs.reduce((s,t)=>s+tabTotal(t),0);
+  const f=dayFigures(day);
+  const closes=(V.closes||[]).filter(c=>c.day===day).sort((a,b)=>b.at-a.at);
   modal(`<h2>Kasse · ${dayLabel(day)}</h2>
     <div class="daytabs"><button data-day="${today}" class="${day===today?"on":""}">Heute</button><button data-day="${yesterday}" class="${day===yesterday?"on":""}">Gestern</button></div>
     <p class="hint">Die Barnacht zählt bis 8 Uhr morgens zum Vortag. Alles Ältere steht in der Google-Tabelle.</p>
     <div class="stats four">
-      <div class="stat"><small>Bar</small><b class="num">${eur(by("bar"))}</b></div>
-      <div class="stat"><small>EC-Karte</small><b class="num">${eur(by("ec"))}</b></div>
-      <div class="stat"><small>PayPal</small><b class="num">${eur(by("paypal"))}</b></div>
-      <div class="stat hl"><small>Umsatz kassiert</small><b class="num">${eur(total)}</b></div>
-      <div class="stat red"><small>Auslagen</small><b class="num">− ${eur(expSum)}</b></div>
-      <div class="stat hl"><small>Soll in Kasse (Bar)</small><b class="num">${eur(by("bar")-expSum)}</b></div>
-      <div class="stat red"><small>Angeschrieben</small><b class="num">${eur(newDebts.reduce((s,d)=>s+d.amount,0))}</b></div>
-      <div class="stat"><small>Noch offen (Deckel)</small><b class="num">${eur(open)}</b></div>
+      <div class="stat"><small>Bar</small><b class="num">${eur(f.bar)}</b></div>
+      <div class="stat"><small>EC-Karte</small><b class="num">${eur(f.ec)}</b></div>
+      <div class="stat"><small>PayPal</small><b class="num">${eur(f.paypal)}</b></div>
+      <div class="stat hl"><small>Eingenommen</small><b class="num">${eur(f.total)}</b></div>
+      <div class="stat red"><small>Auslagen</small><b class="num">− ${eur(f.exp)}</b></div>
+      <div class="stat hl"><small>Bar − Auslagen</small><b class="num">${eur(f.bar-f.exp)}</b></div>
+      <div class="stat red"><small>Angeschrieben</small><b class="num">${eur(f.debtNew)}</b></div>
+      <div class="stat"><small>Noch offen (Deckel)</small><b class="num">${eur(f.openSum)}</b></div>
     </div>
+    ${closes.length?`<div class="list">${closes.map(c=>`<button class="dl" data-cl="${c.id}"><span class="who">✓ Abgeschlossen ${timeStr(c.at)}<small>${esc(c.staff)} · Differenz ${eur(c.diff)}</small></span><span class="amt p">Bericht ›</span></button>`).join("")}</div>`:""}
+    <div class="row"><button class="btn gold" id="tClose">${closes.length?"Erneut abschließen":"Feierabend · Tagesabschluss"}</button></div>
     <div class="tools"><button class="btn" id="tExp">+ Auslage</button><button class="btn" id="tDebt">Schuldenbuch</button><button class="btn" id="tMenu">Karte bearbeiten</button></div>
-    ${topL.length?`<span class="lbl">Renner</span><div class="list">${topL.map(([n,q])=>`<div class="li"><span>${esc(n)}</span><span class="num">${q}×</span></div>`).join("")}</div>`:""}
-    ${exps.length?`<span class="lbl">Auslagen</span><div class="list">${exps.map(e=>`<div class="li"><span>${timeStr(e.at)} · ${esc(e.what)}${e.staff?" · "+esc(e.staff):""}</span><span class="num">− ${eur(e.amount)}</span></div>`).join("")}</div>`:""}
-    <span class="lbl">Zahlungen (${pays.length})</span><div class="list">${pays.length?pays.map(p=>`<div class="li"><span>${timeStr(p.at)} · ${esc(p.name)}${p.kind==="teil"?" (Teil)":p.kind==="schulden"?" (Schulden)":""} · ${METHODS[p.method]||p.method}${p.staff?" · "+esc(p.staff):""}</span><span class="num">${eur(p.amount)}</span></div>`).join(""):`<div class="li"><span>Noch nichts kassiert</span><span></span></div>`}</div>
+    ${f.top.length?`<span class="lbl">Renner</span><div class="list">${f.top.map(([n,q])=>`<div class="li"><span>${esc(n)}</span><span class="num">${q}×</span></div>`).join("")}</div>`:""}
+    ${f.exps.length?`<span class="lbl">Auslagen</span><div class="list">${f.exps.map(e=>`<div class="li"><span>${timeStr(e.at)} · ${esc(e.what)}${e.staff?" · "+esc(e.staff):""}</span><span class="num">− ${eur(e.amount)}</span></div>`).join("")}</div>`:""}
+    <span class="lbl">Zahlungen (${f.pays.length})</span><div class="list">${f.pays.length?f.pays.map(p=>`<div class="li"><span>${timeStr(p.at)} · ${esc(p.name)}${p.kind==="teil"?" (Teil)":p.kind==="schulden"?" (Schulden)":""} · ${METHODS[p.method]||p.method}${p.staff?" · "+esc(p.staff):""}</span><span class="num">${eur(p.amount)}</span></div>`).join(""):`<div class="li"><span>Noch nichts kassiert</span><span></span></div>`}</div>
     <div class="row"><button class="btn" id="tFav">Favoriten zurücksetzen</button><button class="btn pri" id="cx">Schließen</button></div>`);
   $$("[data-day]").forEach(b=>b.onclick=()=>dayDialog(b.dataset.day));
+  $$("[data-cl]").forEach(b=>b.onclick=()=>reportDialog(V.closes.find(c=>c.id===b.dataset.cl),day));
   $("#cx").onclick=()=>closeModal();
+  $("#tClose").onclick=()=>closeDialog(day);
   $("#tExp").onclick=expenseDialog;
   $("#tDebt").onclick=()=>debtsDialog();
   $("#tMenu").onclick=()=>menuDialog();
   $("#tFav").onclick=()=>{ if(confirm("Verkaufszähler für die Favoriten auf Null setzen? (gilt für alle Geräte)")){ dispatch({t:"resetStats"}); toast("Favoriten zurückgesetzt",false); } };
+}
+
+/* ---------- Tagesabschluss / Kassensturz ---------- */
+function closeDialog(day){
+  const f=dayFigures(day);
+  const last=(V.closes||[]).slice().sort((a,b)=>b.at-a.at)[0];
+  const v={start:last?numIn(last.float):"", counted:"", float:last?numIn(last.float):"", ecTerm:"", note:""};
+  const draw=()=>{
+    modal(`<h2>Tagesabschluss</h2><p class="hint">${dayLabel(day)} · Kasse zählen und eintragen.</p>
+      ${f.openCount?`<div class="change" style="background:#311a15;border-color:#7a3a2a;display:block"><b style="font-size:18px;color:#f0a58f">⚠ Noch ${f.openCount} Deckel offen (${eur(f.openSum)})</b><div style="font-size:13px;color:var(--muted);margin-top:4px">Erst abrechnen oder anschreiben – sonst bleiben sie für morgen stehen.</div></div>`:""}
+      <div class="cols2">
+        <div><span class="lbl">Wechselgeld Anfang</span><input class="field num" id="cS" inputmode="decimal" placeholder="z. B. 150" value="${esc(v.start)}"></div>
+        <div><span class="lbl">Bar gezählt (gesamt)</span><input class="field num" id="cC" inputmode="decimal" placeholder="alles in der Kasse" value="${esc(v.counted)}"></div>
+        <div><span class="lbl">Bleibt als Wechselgeld drin</span><input class="field num" id="cF" inputmode="decimal" placeholder="z. B. 150" value="${esc(v.float)}"></div>
+        <div><span class="lbl">EC laut Terminal (optional)</span><input class="field num" id="cE" inputmode="decimal" placeholder="${eur(f.ec)}" value="${esc(v.ecTerm)}"></div>
+      </div>
+      <span class="lbl">Notiz (optional)</span><input class="field" id="cN" value="${esc(v.note)}" placeholder="z. B. 2 € Differenz, Trinkgeld geteilt" style="font-size:16px;font-family:var(--sans);font-weight:400">
+      <div id="cCalc"></div>
+      <div class="err" id="cErr"></div>
+      <div class="row"><button class="btn" id="cx">Zurück</button><button class="btn gold" id="ok">Abschluss speichern</button></div>`);
+    const calc=()=>{
+      v.start=$("#cS").value; v.counted=$("#cC").value; v.float=$("#cF").value; v.ecTerm=$("#cE").value; v.note=$("#cN").value;
+      const st=parseEur(v.start)||0, c=parseEur(v.counted), fl=parseEur(v.float)||0;
+      const soll=Math.round((st+f.bar-f.exp)*100)/100;
+      const diff=isNaN(c)?null:Math.round((c-soll)*100)/100;
+      const col=diff===null?"var(--muted)":Math.abs(diff)<0.005?"#a9d68f":diff<0?"#f0a58f":"var(--gold2)";
+      $("#cCalc").innerHTML=`<div class="list" style="margin-top:14px">
+        <div class="li"><span>Wechselgeld Anfang</span><span class="num">${eur(st)}</span></div>
+        <div class="li"><span>+ Bar-Einnahmen</span><span class="num">${eur(f.bar)}</span></div>
+        <div class="li"><span>− Auslagen</span><span class="num">${eur(f.exp)}</span></div>
+        <div class="li"><span><b>= Soll in der Kasse</b></span><span class="num"><b>${eur(soll)}</b></span></div>
+        <div class="li"><span>Gezählt</span><span class="num">${isNaN(c)?"–":eur(c)}</span></div></div>
+        <div class="change" style="border-color:${col};background:${diff!==null&&diff<-0.005?"#311a15":diff!==null&&diff>0.005?"#2e2416":"#1a2a17"}"><span>Differenz</span><b class="num" style="color:${col}">${diff===null?"–":(diff>0?"+ ":"")+eur(diff)}</b></div>
+        ${!isNaN(c)?`<div class="bigtotal"><span>Entnahme (geht raus)</span><b class="num">${eur(c-fl)}</b></div>`:""}`;
+    };
+    ["#cS","#cC","#cF","#cE","#cN"].forEach(id=>$(id).oninput=calc); calc();
+    focusLater(v.start?"#cC":"#cS");
+    $("#cx").onclick=()=>dayDialog(day);
+    $("#ok").onclick=()=>{
+      calc();
+      const st=parseEur(v.start), c=parseEur(v.counted), fl=parseEur(v.float), et=parseEur(v.ecTerm);
+      if(isNaN(c)){ $("#cErr").textContent="Bitte den gezählten Bargeld-Betrag eintragen."; $("#cC").focus(); return; }
+      const r2=x=>Math.round(x*100)/100, s0=isNaN(st)?0:st, f0=isNaN(fl)?0:fl, soll=r2(s0+f.bar-f.exp);
+      const report={day, bar:f.bar, ec:f.ec, paypal:f.paypal, total:f.total, exp:f.exp, start:s0, soll, counted:c, diff:r2(c-soll),
+        float:f0, take:r2(c-f0), ecTerm:isNaN(et)?null:et, debtNew:f.debtNew, debtPaid:f.debtPaid, openSum:f.openSum, openCount:f.openCount,
+        note:v.note.trim(), payCount:f.pays.length,
+        exps:f.exps.map(e=>[e.what,e.amount]), debts:f.newDebts.map(d=>[d.name,d.amount]), top:f.top};
+      const pid=uid(); dispatch({t:"close",pid,report});
+      reportDialog(V.closes.find(x=>x.id===pid)||Object.assign({id:pid,at:Date.now(),staff},report),day);
+    };
+  };
+  draw();
+}
+function reportText(r){
+  const L=(a,b)=>a.padEnd(22,".")+" "+b.padStart(11);
+  const e=n=>eur(n);
+  const d=new Date(r.day+"T12:00").toLocaleDateString("de-DE",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+  const out=[
+    "PREDIGER · TAGESABSCHLUSS", d, `Abgeschlossen ${timeStr(r.at)} von ${r.staff||"–"}`, "",
+    "EINNAHMEN ("+r.payCount+" Zahlungen)", L("Bar",e(r.bar)), L("EC-Karte",e(r.ec)), L("PayPal",e(r.paypal)), L("Gesamt",e(r.total)),
+    r.debtPaid?L("davon Schulden bezahlt",e(r.debtPaid)):null, "",
+    "KASSE (BAR)", L("Wechselgeld Anfang",e(r.start)), L("+ Bar-Einnahmen",e(r.bar)), L("− Auslagen",e(r.exp)), L("= Soll",e(r.soll)),
+    L("Gezählt",e(r.counted)), L("DIFFERENZ",(r.diff>0?"+":"")+e(r.diff)), L("Wechselgeld bleibt",e(r.float)), L("ENTNAHME",e(r.take)),
+  ];
+  if(r.ecTerm!=null) out.push("", L("EC laut Terminal",e(r.ecTerm)), L("EC laut App",e(r.ec)), L("Abweichung EC",e(r.ecTerm-r.ec)));
+  if(r.exps&&r.exps.length) out.push("", "AUSLAGEN", ...r.exps.map(([w,a])=>L(w.slice(0,22),e(a))));
+  if(r.debts&&r.debts.length) out.push("", "ANGESCHRIEBEN ("+e(r.debtNew)+")", ...r.debts.map(([n,a])=>L(n.slice(0,22),e(a))));
+  out.push("", L("Offene Deckel",r.openCount+" · "+e(r.openSum)));
+  if(r.top&&r.top.length) out.push("", "RENNER", ...r.top.map(([n,q])=>`${String(q).padStart(3)}× ${n}`));
+  if(r.note) out.push("", "NOTIZ: "+r.note);
+  return out.filter(x=>x!==null).join("\n");
+}
+function reportDialog(r,day){
+  const txt=reportText(r);
+  modal(`<h2>Bericht</h2><p class="hint">Gespeichert in der Google-Tabelle (Blatt „Abschlüsse“). Hier zum Verschicken:</p>
+    <textarea class="report" id="rT" readonly>${esc(txt)}</textarea>
+    <div class="row"><a class="btn gold" style="text-align:center;text-decoration:none" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(txt)}">Per WhatsApp senden</a><button class="btn" id="rC">Kopieren</button></div>
+    <div class="row"><button class="btn pri" id="cx">Fertig</button></div>`);
+  $("#rC").onclick=()=>{ const t=$("#rT"); t.focus(); t.select(); let ok=false; try{ ok=document.execCommand("copy"); }catch(e){}
+    if(!ok && navigator.clipboard) navigator.clipboard.writeText(txt).then(()=>ok=true).catch(()=>{});
+    toast("Bericht kopiert",false); };
+  $("#cx").onclick=()=>dayDialog(day||r.day);
 }
 function expenseDialog(){
   modal(`<h2>Auslage</h2><p class="hint">Geld aus der Kasse genommen, z. B. Zitronen gekauft, Eis, Trinkgeld ausgezahlt.</p>

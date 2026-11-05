@@ -79,7 +79,7 @@ function menuSeed(){
   var out=[]; MENU_CATS.forEach(function(c){ c[1].forEach(function(i){ out.push({id:slug(i[0]),cat:c[0],name:i[0],price:i[1],desc:i[2]}); }); });
   return out;
 }
-function emptyState(){ return {menu:[],tabs:[],debts:[],payments:[],expenses:[],stats:{},regulars:[]}; }
+function emptyState(){ return {menu:[],tabs:[],debts:[],payments:[],expenses:[],closes:[],stats:{},regulars:[]}; }
 function areaName(id){ for(var i=0;i<AREAS.length;i++) if(AREAS[i].id===id) return AREAS[i].name; return id; }
 function tabTotal(t){ var s=0; for(var id in t.items){ var m=t.meta[id]||{price:0}; s+=m.price*t.items[id]; } return r2(s); }
 function findBy(list,id){ for(var i=0;i<list.length;i++) if(list[i].id===id) return list[i]; return null; }
@@ -152,6 +152,9 @@ function applyOp(s, op){
       if(ex) s.menu[s.menu.indexOf(ex)]=clean; else s.menu.push(clean); return;
     case "menuDel": s.menu=s.menu.filter(function(x){ return x.id!==op.item; }); return;
     case "resetStats": s.stats={}; return;
+    case "close":
+      s.closes=s.closes||[]; if(findBy(s.closes,op.pid)) return;
+      var rep=op.report||{}; rep.id=op.pid; rep.at=op.at; rep.staff=op.staff||""; s.closes.push(rep); return;
   }
 }
 // ===== SHARED END =====
@@ -165,6 +168,7 @@ var DEF = {
   "Karte":        ["ID","Kategorie","Name","Preis","Info"],
   "Statistik":    ["ID","Anzahl"],
   "Stammgäste":   ["Name"],
+  "Abschlüsse":   ["ID","Tag","Uhrzeit","Bedienung","Bar","EC-Karte","PayPal","Gesamt","Auslagen","Wechselgeld Anfang","Soll Bar","Gezählt","Differenz","Wechselgeld neu","Entnahme","EC Terminal","Angeschrieben","Schulden bezahlt","Offene Deckel","Notiz","_json"],
   "Einstellungen":["Schlüssel","Wert"]
 };
 
@@ -304,6 +308,7 @@ function load_(){
   s.expenses=rows_("Auslagen").map(function(r){
     return {id:String(r[0]), day:day_(r[1]), at:Number(r[6])||0, what:String(r[3]), amount:num_(r[4]), staff:String(r[5]||"")};
   }).filter(function(e){ return e.day>=cutoff; });
+  var cl=rows_("Abschlüsse"); s.closes=cl.slice(-20).map(function(r){ var o=json_(r[20],{}); o.id=String(r[0]); return o; });
   rows_("Statistik").forEach(function(r){ if(r[0]) s.stats[String(r[0])]=Number(r[1])||0; });
   s.regulars=rows_("Stammgäste").map(function(r){ return String(r[0]); }).filter(String);
 
@@ -311,6 +316,7 @@ function load_(){
   Object.keys(dirty).forEach(function(k){ snap[k]=null; });
   snap.payIds={}; s.payments.forEach(function(p){ snap.payIds[p.id]=1; });
   snap.expIds={}; s.expenses.forEach(function(e){ snap.expIds[e.id]=1; });
+  snap.closeIds={}; s.closes.forEach(function(c){ snap.closeIds[c.id]=1; });
   return {s:s, snap:snap};
 }
 
@@ -341,5 +347,9 @@ function save_(s,snap){
   }));
   append_("Auslagen", s.expenses.filter(function(e){ return !snap.expIds[e.id]; }).map(function(e){
     return [e.id, e.day, fmt_(e.at,"HH:mm"), e.what, e.amount, e.staff, e.at];
+  }));
+  append_("Abschlüsse", (s.closes||[]).filter(function(c){ return !snap.closeIds[c.id]; }).map(function(c){
+    return [c.id, c.day, fmt_(c.at,"HH:mm"), c.staff, c.bar, c.ec, c.paypal, c.total, c.exp, c.start, c.soll, c.counted, c.diff, c.float, c.take,
+            c.ecTerm===null||c.ecTerm===undefined?"":c.ecTerm, c.debtNew, c.debtPaid, c.openSum, c.note||"", JSON.stringify(c)];
   }));
 }
