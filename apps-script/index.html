@@ -202,6 +202,24 @@ h4{margin:16px 0 6px;font-size:12px;letter-spacing:.1em;text-transform:uppercase
 .report{width:100%;height:46vh;margin-top:6px;padding:12px;border-radius:12px;border:1px solid var(--line);background:#0f0b08;color:var(--ink);font:13px/1.45 ui-monospace,Menlo,Consolas,monospace;resize:vertical;user-select:text;-webkit-user-select:text}
 .catpick button.on{border-color:var(--gold);color:var(--gold2);background:#2e2416}
 .catpick button[data-new]{border-style:dashed;color:var(--muted);font-family:var(--sans);font-size:15px}
+.payrow{grid-column:1/-1;display:grid;grid-template-columns:1fr 1.5fr;gap:8px}
+.payrow .abtn.pay{grid-column:auto;background:transparent;border:2px solid var(--red);color:var(--red);font-size:16px;padding:14px 6px}
+.abtn.ok{background:linear-gradient(180deg,#3a9a3f,#2c7a31);border:1px solid #4cb552;color:#fff;font-size:19px;font-weight:700;padding:14px 6px;box-shadow:0 6px 18px rgba(44,122,49,.35)}
+.abtn.ok:active{transform:scale(.97)}
+.okfx{position:fixed;inset:0;z-index:70;display:none;align-items:center;justify-content:center;background:rgba(8,5,3,.55);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+.okfx.show{display:flex;animation:okfade .2s ease-out}
+.okcard{display:flex;flex-direction:column;align-items:center;gap:10px;padding:28px 34px 24px;border-radius:26px;background:#14200f;border:1px solid #3d9a41;box-shadow:0 20px 60px rgba(0,0,0,.6),0 0 0 6px rgba(61,154,65,.12);animation:okpop .42s cubic-bezier(.2,1.4,.4,1)}
+.okcircle{width:120px;height:120px}
+.okring{fill:#2c7a31;stroke:#6fd06f;stroke-width:4;stroke-dasharray:330;stroke-dashoffset:330;animation:okring .45s ease-out forwards}
+.okcheck{fill:none;stroke:#fff;stroke-width:10;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:90;stroke-dashoffset:90;animation:okcheck .3s .3s ease-out forwards}
+.okname{font-family:var(--serif);font-size:30px;font-weight:700;color:#eaf7e4}
+.okinfo{font-size:15px;color:#a9d68f;font-weight:600}
+@keyframes okfade{from{opacity:0}to{opacity:1}}
+@keyframes okpop{0%{transform:scale(.6);opacity:0}100%{transform:scale(1);opacity:1}}
+@keyframes okring{to{stroke-dashoffset:0}}
+@keyframes okcheck{to{stroke-dashoffset:0}}
+.chip.pulse{animation:chippulse 1.6s ease-out}
+@keyframes chippulse{0%{box-shadow:0 0 0 0 rgba(111,208,111,.9);border-color:#6fd06f}70%{box-shadow:0 0 0 16px rgba(111,208,111,0);border-color:#6fd06f}100%{box-shadow:none}}
 .err{color:#f0a58f;font-size:14px;margin-top:8px;min-height:18px}
 
 @media (max-width:1250px){ .sub{display:none} }
@@ -274,7 +292,7 @@ h4{margin:16px 0 6px;font-size:12px;letter-spacing:.1em;text-transform:uppercase
           <button class="abtn" id="btnSplit">Aufteilen</button>
           <button class="abtn" id="btnRename">Name</button>
           <button class="abtn" id="btnDrop">Löschen</button>
-          <button class="abtn pay" id="btnPay">Abrechnen</button>
+          <div class="payrow"><button class="abtn pay" id="btnPay">Abrechnen</button><button class="abtn ok" id="btnOk">✓ Fertig</button></div>
         </div>
       </div>
     </aside>
@@ -282,6 +300,9 @@ h4{margin:16px 0 6px;font-size:12px;letter-spacing:.1em;text-transform:uppercase
 </section>
 
 <div class="modal" id="modal"><div class="box" id="box"></div></div>
+<div class="okfx" id="okfx" aria-live="polite"><div class="okcard">
+  <svg class="okcircle" viewBox="0 0 120 120"><circle class="okring" cx="60" cy="60" r="52"/><path class="okcheck" d="M36 62 l16 16 l32 -34"/></svg>
+  <div class="okname" id="okName"></div><div class="okinfo" id="okInfo"></div></div></div>
 <div class="toast" id="toast"><span id="toastMsg"></span><button id="toastUndo">Rückgängig</button></div>
 
 <script>
@@ -451,7 +472,7 @@ function renderFloor(){
     const box=el.querySelector(".tabs");
     tabs.forEach(t=>{
       const n=Object.values(t.items).reduce((s,q)=>s+q,0);
-      const b=document.createElement("button"); b.className="chip";
+      const b=document.createElement("button"); b.className="chip"+(t.id===pulseTab?" pulse":""); b.dataset.tab=t.id;
       b.innerHTML=`<span class="n">${esc(t.name)}</span><span class="s num">${eur(tabTotal(t))}</span><span class="t">${n} Getränk${n===1?"":"e"} · seit ${timeStr(t.opened)}</span>`;
       b.onclick=()=>openTab(t.id); box.appendChild(b);
     });
@@ -500,12 +521,24 @@ function newGuest(area){
 /* =========================================================
    Deckel
    ========================================================= */
-let cur=null, curCat="★", undoStack=[];
+let cur=null, curCat="★", undoStack=[], sessAdd=0, pulseTab=null;
+const buzz = p => { try{ if(navigator.vibrate) navigator.vibrate(p); }catch(e){} };
 const T = () => V && V.tabs.find(t=>t.id===cur);
 
-function openTab(id){ cur=id; curCat="★"; $("#q").value=""; $("#sheet").classList.add("open"); renderTab(); }
+function openTab(id){ sessAdd=0; cur=id; curCat="★"; $("#q").value=""; $("#sheet").classList.add("open"); renderTab(); }
 function closeTab(){ cur=null; $("#sheet").classList.remove("open"); hideToast(); if(V) renderFloor(); }
 $("#btnBack").onclick=closeTab;
+let okBusy=false;
+$("#btnOk").onclick=()=>{
+  const t=T(); if(!t||okBusy) return; okBusy=true;
+  const n=Object.values(t.items).reduce((s,q)=>s+q,0);
+  $("#okName").textContent=t.name;
+  $("#okInfo").textContent=(sessAdd>0?`+${sessAdd} gebucht · `:"")+`${n} Getränk${n===1?"":"e"} · ${eur(tabTotal(t))}`;
+  hideToast(); buzz([25,40,60]);
+  const fx=$("#okfx"); fx.classList.remove("show"); void fx.offsetWidth; fx.classList.add("show");
+  setTimeout(()=>{ fx.classList.remove("show"); pulseTab=t.id; closeTab(); okBusy=false;
+    setTimeout(()=>{ pulseTab=null; },1700); },1050);
+};
 
 function renderTab(){
   const t=T(); if(!t) return;
@@ -570,6 +603,7 @@ function addItem(id,d,p,silent){
   p=p||t.meta[id]||prod(id); if(!p) return;
   if(d<0 && !(t.items[id]>0)) return;
   dispatch({t:"add",tab:t.id,item:id,d,name:p.name,price:p.price});
+  sessAdd+=d; if(d>0) buzz(12);
   if(!silent && d>0){
     undoStack.push({tab:t.id,id}); toast(`+1 ${p.name}`);
     const b=document.querySelector(`.prod[data-id="${CSS.escape(id)}"]`); if(b){ b.classList.remove("flash"); void b.offsetWidth; b.classList.add("flash"); }
