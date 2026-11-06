@@ -203,7 +203,7 @@ h4{margin:16px 0 6px;font-size:12px;letter-spacing:.1em;text-transform:uppercase
 .catpick button.on{border-color:var(--gold);color:var(--gold2);background:#2e2416}
 .catpick button[data-new]{border-style:dashed;color:var(--muted);font-family:var(--sans);font-size:15px}
 .payrow{grid-column:1/-1;display:grid;grid-template-columns:1fr 1.5fr;gap:8px}
-.payrow .abtn.pay{grid-column:auto;background:transparent;border:2px solid var(--red);color:var(--red);font-size:16px;padding:14px 6px}
+.payrow .abtn.pay{grid-column:auto;background:linear-gradient(180deg,#2f6fd6,#2357b0);border:1px solid #4a8af0;color:#fff;font-size:17px;font-weight:700;padding:14px 6px;box-shadow:0 6px 18px rgba(35,87,176,.3)}
 .abtn.ok{background:linear-gradient(180deg,#3a9a3f,#2c7a31);border:1px solid #4cb552;color:#fff;font-size:19px;font-weight:700;padding:14px 6px;box-shadow:0 6px 18px rgba(44,122,49,.35)}
 .abtn.ok:active{transform:scale(.97)}
 .okfx{position:fixed;inset:0;z-index:70;display:none;align-items:center;justify-content:center;background:rgba(8,5,3,.55);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
@@ -303,7 +303,7 @@ h4{margin:16px 0 6px;font-size:12px;letter-spacing:.1em;text-transform:uppercase
           <button class="abtn" id="btnSplit">Aufteilen</button>
           <button class="abtn" id="btnRename">Name</button>
           <button class="abtn" id="btnDrop">Löschen</button>
-          <div class="payrow"><button class="abtn pay" id="btnPay">Abrechnen</button><button class="abtn ok" id="btnOk">✓ Fertig</button></div>
+          <div class="payrow"><button class="abtn pay" id="btnPay">Kassieren</button><button class="abtn ok" id="btnOk">✓ Fertig</button></div>
         </div>
       </div>
     </aside>
@@ -697,7 +697,7 @@ $("#btnMove").onclick=()=>{ const t=T(); const others=V.tabs.filter(x=>x.id!==t.
 
 $("#btnDrop").onclick=()=>{ const t=T();
   if(!Object.keys(t.items).length){ cur=null; dispatch({t:"drop",tab:t.id}); closeTab(); return; }
-  modal(`<h2>Deckel löschen?</h2><p class="hint">${esc(t.name)} hat noch ${eur(tabTotal(t))} offen. Löschen heißt: <b>nicht kassiert</b> (Fehleingabe, aufs Haus). Zum Anschreiben bitte „Abrechnen → Anschreiben“ nehmen.</p>
+  modal(`<h2>Deckel löschen?</h2><p class="hint">${esc(t.name)} hat noch ${eur(tabTotal(t))} offen. Löschen heißt: <b>nicht kassiert</b> (Fehleingabe, aufs Haus). Zum Anschreiben bitte „Kassieren → Anschreiben“ nehmen.</p>
     <div class="row"><button class="btn" id="cx">Abbrechen</button><button class="btn pri" id="ok">Ja, löschen</button></div>`);
   $("#cx").onclick=()=>closeModal();
   $("#ok").onclick=()=>{ closeModal(); cur=null; dispatch({t:"drop",tab:t.id}); closeTab(); };
@@ -752,7 +752,7 @@ function payDialog(){
     const all=ids.every(id=>(sel[id]||0)===t.items[id]);
     const opts=[...new Set([sum,Math.ceil(sum/5)*5,Math.ceil(sum/10)*10,Math.ceil(sum/20)*20,Math.ceil(sum/50)*50].filter(v=>v>=sum&&v>0))].slice(0,4);
     const okLabel = method==="schulden" ? `${eur(sum)} anschreiben` : all ? `${eur(sum)} bezahlt · ${METHODS[method]}` : `Teilbetrag ${eur(sum)} bezahlt`;
-    modal(`<h2>Abrechnen · ${esc(t.name)}</h2>
+    modal(`<h2>Kassieren · ${esc(t.name)}</h2>
       <p class="hint">Getrennt zahlen? Mengen mit − / + anpassen – der Rest bleibt auf dem Deckel.</p>
       <div class="paylines">${ids.map(id=>{const p=lineItem(t,id);return `<div class="pl"><div class="nm">${esc(p.name)}<small class="num">${sel[id]||0} von ${t.items[id]} · à ${eur(p.price)}</small></div>
         <div class="pc"><button data-d="${esc(id)}">−</button><button data-u="${esc(id)}">+</button></div><div class="amt num">${eur(p.price*(sel[id]||0))}</div></div>`}).join("")}</div>
