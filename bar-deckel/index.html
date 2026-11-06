@@ -267,6 +267,12 @@ h4{margin:16px 0 6px;font-size:12px;letter-spacing:.1em;text-transform:uppercase
 .tipbox{display:grid;grid-template-columns:1fr auto;align-items:baseline;gap:2px 10px;margin:10px 0 4px;padding:12px 14px;border-radius:12px;border:1px solid #5c4527;background:linear-gradient(180deg,#2e2416,#231a10)}
 .tipbox b{font-family:var(--serif);font-size:24px;color:var(--gold2)}
 .tipbox small{grid-column:1/-1;color:var(--muted);font-size:12px}
+.cigarbox{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 0}
+.cigarbox>div{padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--bg2)}
+.cigarbox>div:nth-child(2){border-color:#6b4a2a;background:linear-gradient(180deg,#2f2014,#22170e)}
+.cigarbox small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em}
+.cigarbox b{font-family:var(--serif);font-size:24px}
+.cigarbox p{grid-column:1/-1;margin:0;color:var(--muted);font-size:13px}
 .err{color:#f0a58f;font-size:14px;margin-top:8px;min-height:18px}
 
 @media (max-width:1250px){ .sub{display:none} }
@@ -383,7 +389,7 @@ function applyOp(s, op){
     case "add":
       if(!t) return;
       var q=(t.items[op.item]||0)+op.d; if(q<0) return;
-      if(op.d>0 && !t.meta[op.item]) t.meta[op.item]={name:op.name, price:Number(op.price)||0};
+      if(op.d>0 && !t.meta[op.item]) t.meta[op.item]={name:op.name, price:Number(op.price)||0, cat:op.cat||""};
       if(q===0){ delete t.items[op.item]; delete t.meta[op.item]; } else t.items[op.item]=q;
       bumpStat(s,op.item,op.d); return;
     case "rename": if(t && op.name){ t.name=op.name; addRegular(s,op.name); } return;
@@ -414,7 +420,7 @@ function applyOp(s, op){
       for(var it in op.sel){
         var n=Math.min(op.sel[it]||0, t.items[it]||0); if(n<=0) continue;
         var m=t.meta[it]||{name:it,price:0};
-        lines.push({name:m.name, price:m.price, qty:n}); sum+=m.price*n;
+        lines.push({name:m.name, price:m.price, qty:n, cat:m.cat||""}); sum+=m.price*n;
         if(t.items[it]-n>0) t.items[it]-=n; else { delete t.items[it]; delete t.meta[it]; }
       }
       sum=r2(sum); if(!lines.length) return;
@@ -460,7 +466,10 @@ function reportText(r){
   function L(a,b){ a=String(a); b=String(b); while(a.length<22) a+="."; while(b.length<11) b=" "+b; return a+" "+b; }
   var out=["PREDIGER · TAGESABSCHLUSS", r.dateLabel||r.day, "Abgeschlossen "+(r.timeStr||"")+" von "+(r.staff||"–"), "",
     "EINNAHMEN ("+(r.payCount||0)+" Zahlungen)", L("Bar",fmtE(r.bar)), L("EC-Karte",fmtE(r.ec)), L("PayPal",fmtE(r.paypal)), L("Gesamt",fmtE(r.total))];
+  if(r.cigar){ out.push(L("davon Getränke",fmtE(r.total-r.cigar)), L("davon Zigarren",fmtE(r.cigar))); }
   if(r.debtPaid) out.push(L("davon Schulden bezahlt",fmtE(r.debtPaid)));
+  if(r.cigar){ out.push("", "ZIGARREN ("+(r.cigarCount||0)+" Stück · "+fmtE(r.cigar)+")");
+    (r.cigars||[]).forEach(function(x){ var q=String(x[1]); while(q.length<3) q=" "+q; out.push(q+"× "+x[0]); }); }
   if(r.tip) out.push("", "TRINKGELD", L("Bar",fmtE(r.tipBar)), L("EC-Karte",fmtE(r.tipEc)), L("PayPal",fmtE(r.tipPaypal)), L("Trinkgeld gesamt",fmtE(r.tip)));
   out.push("", "KASSE (BAR)", L("Wechselgeld Anfang",fmtE(r.start)), L("+ Bar-Einnahmen",fmtE(r.bar)));
   if(r.tipBar) out.push(L("+ Trinkgeld bar",fmtE(r.tipBar)));
@@ -473,6 +482,16 @@ function reportText(r){
   if(r.top && r.top.length){ out.push("","RENNER"); r.top.forEach(function(x){ var q=String(x[1]); while(q.length<3) q=" "+q; out.push(q+"× "+x[0]); }); }
   if(r.note) out.push("", "NOTIZ: "+r.note);
   return out.join("\n");
+}
+function isCigarCat(c){ return /zigarr|cigar/i.test(String(c||"")); }
+function cigarSplit(lines,menu){
+  var byName={}; (menu||[]).forEach(function(m){ byName[m.name]=m.cat; });
+  var out={sum:0,count:0,items:{}};
+  (lines||[]).forEach(function(l){
+    var c=l.cat||byName[l.name]||""; if(!isCigarCat(c)) return;
+    out.sum=r2(out.sum+l.price*l.qty); out.count+=l.qty; out.items[l.name]=(out.items[l.name]||0)+l.qty;
+  });
+  return out;
 }
 </script>
 <script>
@@ -776,7 +795,7 @@ function addItem(id,d,p,silent){
   const t=T(); if(!t) return;
   p=p||t.meta[id]||prod(id); if(!p) return;
   if(d<0 && !(t.items[id]>0)) return;
-  dispatch({t:"add",tab:t.id,item:id,d,name:p.name,price:p.price});
+  dispatch({t:"add",tab:t.id,item:id,d,name:p.name,price:p.price,cat:p.cat||(prod(id)||{}).cat||""});
   sessAdd+=d; if(d>0) buzz(12);
   if(!silent && d>0){
     undoStack.push({tab:t.id,id}); toast(`+1 ${p.name}`);
@@ -817,24 +836,25 @@ function customDialog(){
   modal(`<h2>Freier Artikel</h2><p class="hint">Für Zigarren, Sonderwünsche oder Preise, die nicht auf der Karte stehen.</p>
     <input class="field" id="cn" placeholder="Bezeichnung, z. B. Zigarre Cohiba Siglo II" autocomplete="off">
     <input class="field num" id="cp" style="margin-top:10px" inputmode="decimal" placeholder="Preis in €, z. B. 14,50">
-    <label style="display:flex;gap:10px;align-items:center;margin-top:14px;font-size:15px"><input type="checkbox" id="ck" checked style="width:22px;height:22px"> fest in die Karte aufnehmen, Kategorie:</label>
+    <span class="lbl">Kategorie</span>
     ${catPicker("cc", curCat!=="★"&&cats.includes(curCat)?curCat:"Zigarren")}
+    <label style="display:flex;gap:10px;align-items:center;margin-top:14px;font-size:15px"><input type="checkbox" id="ck" checked style="width:22px;height:22px"> fest in die Karte aufnehmen</label>
     <div class="err" id="ce"></div>
     <div class="row"><button class="btn" id="cx">Abbrechen</button><button class="btn pri" id="ok">Hinzufügen</button></div>`);
   focusLater("#cn",50);
   wireCatPicker("cc");
-  $("#ck").onchange=()=>{ $("#cc-wrap").style.display=$("#ck").checked?"":"none"; };
   $("#cx").onclick=()=>closeModal();
   $("#ok").onclick=()=>{
     const n=$("#cn").value.trim(), p=parseEur($("#cp").value);
     if(!n){ $("#ce").textContent="Bitte eine Bezeichnung eingeben."; return; }
     if(!(p>=0)){ $("#ce").textContent="Bitte einen gültigen Preis eingeben."; return; }
     closeModal();
+    const cat=$("#cc").value.trim()||"Zigarren";
     if($("#ck").checked){
-      const id="m-"+uid(), cat=$("#cc").value.trim()||"Zigarren";
+      const id="m-"+uid();
       dispatch({t:"menuSet",item:{id,cat,name:n,price:p,desc:""}});
-      addItem(id,1,{name:n,price:p});
-    } else addItem("x-"+uid(),1,{name:n,price:p});
+      addItem(id,1,{name:n,price:p,cat});
+    } else addItem("x-"+uid(),1,{name:n,price:p,cat});
   };
 }
 
@@ -1076,6 +1096,8 @@ function dayFigures(day){
     tipEc:r2(pays.filter(p=>p.method==="ec").reduce((s,p)=>s+(p.tip||0),0)),
     tipPaypal:r2(pays.filter(p=>p.method==="paypal").reduce((s,p)=>s+(p.tip||0),0)),
     tip:r2(pays.reduce((s,p)=>s+(p.tip||0),0)),
+    ...(()=>{ const c=cigarSplit(pays.flatMap(p=>p.lines||[]),V.menu);
+      return {cigar:c.sum, cigarCount:c.count, cigars:Object.entries(c.items).sort((a,b)=>b[1]-a[1])}; })(),
     openSum:r2(V.tabs.reduce((s,t)=>s+tabTotal(t),0)), openCount:V.tabs.length,
     top:Object.entries(top).sort((a,b)=>b[1]-a[1]).slice(0,8) };
 }
@@ -1097,6 +1119,9 @@ function dayDialog(day=dayKey()){
       <div class="stat red"><small>Angeschrieben</small><b class="num">${eur(f.debtNew)}</b></div>
       <div class="stat"><small>Noch offen (Deckel)</small><b class="num">${eur(f.openSum)}</b></div>
     </div>
+    <div class="cigarbox"><div><small>🥃 Getränke</small><b class="num">${eur(f.total-f.cigar)}</b></div>
+      <div><small>🚬 Zigarren · ${f.cigarCount} Stück</small><b class="num">${eur(f.cigar)}</b></div>
+      ${f.cigars.length?`<p>${f.cigars.map(([n,q])=>`${q}× ${esc(n)}`).join(" · ")}</p>`:""}</div>
     <div class="tipbox"><span>💛 Trinkgeld heute</span><b class="num">${eur(f.tip)}</b><small>Bar ${eur(f.tipBar)} · EC ${eur(f.tipEc)} · PayPal ${eur(f.tipPaypal)}</small></div>
     ${closes.length?`<div class="list">${closes.map(c=>`<button class="dl" data-cl="${c.id}"><span class="who">✓ Abgeschlossen ${timeStr(c.at)}<small>${esc(c.staff)} · Differenz ${eur(c.diff)}</small></span><span class="amt p">Bericht ›</span></button>`).join("")}</div>`:""}
     <div class="row"><button class="btn gold" id="tClose">${closes.length?"Erneut abschließen":"Feierabend · Tagesabschluss"}</button></div>
@@ -1120,7 +1145,7 @@ function allDoneDialog(){
   modal(`<div class="alldone"><div class="adicon">🥃</div><h2>Alle Deckel kassiert</h2>
     <p class="hint">Kein offener Deckel mehr im Laden.</p>
     <div class="stats"><div class="stat hl"><small>Heute eingenommen</small><b class="num">${eur(f.total)}</b></div>
-      <div class="stat"><small>Davon Bar</small><b class="num">${eur(f.bar)}</b></div>
+      <div class="stat"><small>Davon Zigarren 🚬</small><b class="num">${eur(f.cigar)}</b></div>
       <div class="stat"><small>Zahlungen</small><b class="num">${f.pays.length}</b></div></div></div>
     <div class="row"><button class="btn" id="cx">Später</button><button class="btn gold" id="ok">Kassensturz machen</button></div>`);
   $("#cx").onclick=()=>closeModal(); $("#ok").onclick=()=>closeDialog(d);
@@ -1170,7 +1195,7 @@ function closeDialog(day){
       const r2=x=>Math.round(x*100)/100, s0=isNaN(st)?0:st, f0=isNaN(fl)?0:fl, soll=r2(s0+f.bar+f.tipBar-f.exp);
       const report={day, bar:f.bar, ec:f.ec, paypal:f.paypal, total:f.total, exp:f.exp, start:s0, soll, counted:c, diff:r2(c-soll),
         float:f0, take:r2(c-f0), ecTerm:isNaN(et)?null:et, debtNew:f.debtNew, debtPaid:f.debtPaid, openSum:f.openSum, openCount:f.openCount,
-        note:v.note.trim(), payCount:f.pays.length, tip:f.tip, tipBar:f.tipBar, tipEc:f.tipEc, tipPaypal:f.tipPaypal, timeStr:timeStr(Date.now()), dateLabel:new Date(day+"T12:00").toLocaleDateString("de-DE",{weekday:"long",day:"numeric",month:"long",year:"numeric"}),
+        note:v.note.trim(), payCount:f.pays.length, tip:f.tip, tipBar:f.tipBar, tipEc:f.tipEc, tipPaypal:f.tipPaypal, cigar:f.cigar, cigarCount:f.cigarCount, cigars:f.cigars, timeStr:timeStr(Date.now()), dateLabel:new Date(day+"T12:00").toLocaleDateString("de-DE",{weekday:"long",day:"numeric",month:"long",year:"numeric"}),
         exps:f.exps.map(e=>[e.what,e.amount]), debts:f.newDebts.map(d=>[d.name,d.amount]), top:f.top};
       const pid=uid(); dispatch({t:"close",pid,report}); closeModal();
       const ok=Math.abs(report.diff)<0.005;

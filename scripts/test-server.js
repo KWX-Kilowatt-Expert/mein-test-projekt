@@ -60,6 +60,17 @@ assert.strictEqual(api({pin:"0000",since:-1,ops:[]}).state.payments.find(x=>x.id
 sheets.Zahlungen.data[0]=sheets.Zahlungen.data[0].slice(0,12); ctx.hdrOk_={};
 api({pin:"0000",ops:[op({t:"expense",pid:"EX9",what:"Test",amount:1})]});
 assert.strictEqual(sheets.Zahlungen.data[0][12],"Trinkgeld", "Überschrift nachgerüstet");
+// Zigarren werden getrennt ausgewiesen
+r=api({pin:"0000",ops:[op({t:"menuSet",item:{id:"m-coh",cat:"Zigarren Kuba",name:"Cohiba Siglo II",price:24,desc:""}}),
+  op({t:"open",tab:"TZ",area:"ba",name:"Max"}),op({t:"add",tab:"TZ",item:"m-coh",d:2,name:"Cohiba Siglo II",price:24,cat:"Zigarren Kuba"}),
+  op({t:"add",tab:"TZ",item:"oban-14",d:1,name:"Oban 14",price:11,cat:"Whisky"}),
+  op({t:"pay",tab:"TZ",sel:{"m-coh":2,"oban-14":1},method:"bar",pid:"PZ"})]});
+const pz=r.state.payments.find(x=>x.id==="PZ"); assert.strictEqual(pz.amount,59);
+assert.strictEqual(JSON.stringify(ctx.cigarSplit(pz.lines,r.state.menu)),JSON.stringify({sum:48,count:2,items:{"Cohiba Siglo II":2}}));
+assert.strictEqual(sheets.Zahlungen.data.find(x=>x[0]==="PZ")[13],48, "Spalte Zigarren");
+// alte Position ohne Kategorie: über die Karte erkannt
+assert.strictEqual(ctx.cigarSplit([{name:"Cohiba Siglo II",price:24,qty:1}],r.state.menu).sum,24);
+assert.ok(/ZIGARREN \(2 Stück · 48,00 €\)/.test(ctx.reportText({total:59,cigar:48,cigarCount:2,cigars:[["Cohiba Siglo II",2]]})));
 // Einrichten: Einstellungen + Wochen-Trigger
 ctx.einrichten();
 assert.ok(sheets.Einstellungen.data.some(r=>r[0]==="Bericht an" && r[1]==="chef@example.com"));

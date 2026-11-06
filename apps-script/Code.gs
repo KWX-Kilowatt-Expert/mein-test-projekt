@@ -100,7 +100,7 @@ function applyOp(s, op){
     case "add":
       if(!t) return;
       var q=(t.items[op.item]||0)+op.d; if(q<0) return;
-      if(op.d>0 && !t.meta[op.item]) t.meta[op.item]={name:op.name, price:Number(op.price)||0};
+      if(op.d>0 && !t.meta[op.item]) t.meta[op.item]={name:op.name, price:Number(op.price)||0, cat:op.cat||""};
       if(q===0){ delete t.items[op.item]; delete t.meta[op.item]; } else t.items[op.item]=q;
       bumpStat(s,op.item,op.d); return;
     case "rename": if(t && op.name){ t.name=op.name; addRegular(s,op.name); } return;
@@ -131,7 +131,7 @@ function applyOp(s, op){
       for(var it in op.sel){
         var n=Math.min(op.sel[it]||0, t.items[it]||0); if(n<=0) continue;
         var m=t.meta[it]||{name:it,price:0};
-        lines.push({name:m.name, price:m.price, qty:n}); sum+=m.price*n;
+        lines.push({name:m.name, price:m.price, qty:n, cat:m.cat||""}); sum+=m.price*n;
         if(t.items[it]-n>0) t.items[it]-=n; else { delete t.items[it]; delete t.meta[it]; }
       }
       sum=r2(sum); if(!lines.length) return;
@@ -179,7 +179,10 @@ function reportText(r){
   function L(a,b){ a=String(a); b=String(b); while(a.length<22) a+="."; while(b.length<11) b=" "+b; return a+" "+b; }
   var out=["PREDIGER · TAGESABSCHLUSS", r.dateLabel||r.day, "Abgeschlossen "+(r.timeStr||"")+" von "+(r.staff||"–"), "",
     "EINNAHMEN ("+(r.payCount||0)+" Zahlungen)", L("Bar",fmtE(r.bar)), L("EC-Karte",fmtE(r.ec)), L("PayPal",fmtE(r.paypal)), L("Gesamt",fmtE(r.total))];
+  if(r.cigar){ out.push(L("davon Getränke",fmtE(r.total-r.cigar)), L("davon Zigarren",fmtE(r.cigar))); }
   if(r.debtPaid) out.push(L("davon Schulden bezahlt",fmtE(r.debtPaid)));
+  if(r.cigar){ out.push("", "ZIGARREN ("+(r.cigarCount||0)+" Stück · "+fmtE(r.cigar)+")");
+    (r.cigars||[]).forEach(function(x){ var q=String(x[1]); while(q.length<3) q=" "+q; out.push(q+"× "+x[0]); }); }
   if(r.tip) out.push("", "TRINKGELD", L("Bar",fmtE(r.tipBar)), L("EC-Karte",fmtE(r.tipEc)), L("PayPal",fmtE(r.tipPaypal)), L("Trinkgeld gesamt",fmtE(r.tip)));
   out.push("", "KASSE (BAR)", L("Wechselgeld Anfang",fmtE(r.start)), L("+ Bar-Einnahmen",fmtE(r.bar)));
   if(r.tipBar) out.push(L("+ Trinkgeld bar",fmtE(r.tipBar)));
@@ -193,18 +196,30 @@ function reportText(r){
   if(r.note) out.push("", "NOTIZ: "+r.note);
   return out.join("\n");
 }
+
+/** Zigarre = Kategorie enthält "Zigarre"/"Cigar". Alte Positionen ohne Kategorie werden über die Karte nachgeschlagen. */
+function isCigarCat(c){ return /zigarr|cigar/i.test(String(c||"")); }
+function cigarSplit(lines,menu){
+  var byName={}; (menu||[]).forEach(function(m){ byName[m.name]=m.cat; });
+  var out={sum:0,count:0,items:{}};
+  (lines||[]).forEach(function(l){
+    var c=l.cat||byName[l.name]||""; if(!isCigarCat(c)) return;
+    out.sum=r2(out.sum+l.price*l.qty); out.count+=l.qty; out.items[l.name]=(out.items[l.name]||0)+l.qty;
+  });
+  return out;
+}
 // ===== SHARED END =====
 
 var TZ = "Europe/Berlin";
 var DEF = {
   "Deckel":       ["ID","Platz","Name","Geöffnet","Bedienung","Summe","Positionen","_items","_meta","_opened"],
-  "Zahlungen":    ["ID","Tag","Uhrzeit","Name","Platz","Zahlart","Betrag","Art","Positionen","Bedienung","_at","_lines","Trinkgeld"],
+  "Zahlungen":    ["ID","Tag","Uhrzeit","Name","Platz","Zahlart","Betrag","Art","Positionen","Bedienung","_at","_lines","Trinkgeld","Zigarren"],
   "Schulden":     ["ID","Name","Betrag","Bezahlt","Offen","Status","Angeschrieben","Notiz","Positionen","Bedienung","_created","_lines","_closed"],
   "Auslagen":     ["ID","Tag","Uhrzeit","Wofür","Betrag","Bedienung","_at"],
   "Karte":        ["ID","Kategorie","Name","Preis","Info"],
   "Statistik":    ["ID","Anzahl"],
   "Stammgäste":   ["Name"],
-  "Abschlüsse":   ["ID","Tag","Uhrzeit","Bedienung","Bar","EC-Karte","PayPal","Gesamt","Auslagen","Wechselgeld Anfang","Soll Bar","Gezählt","Differenz","Wechselgeld neu","Entnahme","EC Terminal","Angeschrieben","Schulden bezahlt","Offene Deckel","Notiz","_json","Trinkgeld"],
+  "Abschlüsse":   ["ID","Tag","Uhrzeit","Bedienung","Bar","EC-Karte","PayPal","Gesamt","Auslagen","Wechselgeld Anfang","Soll Bar","Gezählt","Differenz","Wechselgeld neu","Entnahme","EC Terminal","Angeschrieben","Schulden bezahlt","Offene Deckel","Notiz","_json","Trinkgeld","Zigarren"],
   "Einstellungen":["Schlüssel","Wert"]
 };
 
@@ -219,7 +234,7 @@ function doGet(){
 
 /** Liefert den gemeinsamen Code für den Browser (wird in index.html eingesetzt). */
 function sharedSource(){
-  var fns=[r2,slug,menuSeed,emptyState,areaName,tabTotal,findBy,addRegular,bumpStat,applyOp,fmtE,reportText];
+  var fns=[r2,slug,menuSeed,emptyState,areaName,tabTotal,findBy,addRegular,bumpStat,applyOp,fmtE,reportText,isCigarCat,cigarSplit];
   return "var AREAS="+JSON.stringify(AREAS)+";\nvar METHODS="+JSON.stringify(METHODS)+";\nvar MENU_CATS="+JSON.stringify(MENU_CATS)+
     ";\nvar DEFAULT_FAVS="+JSON.stringify(DEFAULT_FAVS)+";\n"+fns.map(String).join("\n");
 }
@@ -400,14 +415,14 @@ function save_(s,snap){
   });
   append_("Zahlungen", s.payments.filter(function(p){ return !snap.payIds[p.id]; }).map(function(p){
     return [p.id, p.day, fmt_(p.at,"HH:mm"), p.name, areaName(p.area), METHODS[p.method]||p.method, p.amount,
-            p.kind==="schulden"?"Schulden":p.kind==="teil"?"Teilzahlung":"Deckel", linesText_(p.lines||[]), p.staff, p.at, JSON.stringify(p.lines||[]), p.tip||0];
+            p.kind==="schulden"?"Schulden":p.kind==="teil"?"Teilzahlung":"Deckel", linesText_(p.lines||[]), p.staff, p.at, JSON.stringify(p.lines||[]), p.tip||0, cigarSplit(p.lines,s.menu).sum];
   }));
   append_("Auslagen", s.expenses.filter(function(e){ return !snap.expIds[e.id]; }).map(function(e){
     return [e.id, e.day, fmt_(e.at,"HH:mm"), e.what, e.amount, e.staff, e.at];
   }));
   append_("Abschlüsse", (s.closes||[]).filter(function(c){ return !snap.closeIds[c.id]; }).map(function(c){
     return [c.id, c.day, fmt_(c.at,"HH:mm"), c.staff, c.bar, c.ec, c.paypal, c.total, c.exp, c.start, c.soll, c.counted, c.diff, c.float, c.take,
-            c.ecTerm===null||c.ecTerm===undefined?"":c.ecTerm, c.debtNew, c.debtPaid, c.openSum, c.note||"", JSON.stringify(c), c.tip||0];
+            c.ecTerm===null||c.ecTerm===undefined?"":c.ecTerm, c.debtNew, c.debtPaid, c.openSum, c.note||"", JSON.stringify(c), c.tip||0, c.cigar||0];
   }));
 }
 
@@ -419,7 +434,7 @@ function pdf_(html,name){ return Utilities.newBlob(html,"text/html",name+".html"
 function page_(title,body){
   return '<html><head><meta charset="utf-8"><style>body{font-family:Arial,sans-serif;color:#222;margin:24px}h1{font-size:20px;color:#8e2a23;margin:0 0 4px}'+
     'pre{font-family:Consolas,Menlo,monospace;font-size:13px;line-height:1.45;background:#f7f2e8;padding:14px;border-radius:8px}'+
-    'table{border-collapse:collapse;font-size:12px;width:100%}th,td{border:1px solid #ccc;padding:5px 6px;text-align:right}th{background:#f0e6d2}td:first-child,th:first-child,td:nth-child(2),th:nth-child(2),td:nth-child(11),th:nth-child(11){text-align:left}'+
+    'table{border-collapse:collapse;font-size:12px;width:100%}th,td{border:1px solid #ccc;padding:5px 6px;text-align:right}th{background:#f0e6d2}td:first-child,th:first-child,td:nth-child(2),th:nth-child(2),td:nth-child(12),th:nth-child(12){text-align:left}'+
     '.miss{background:#fde3dd}.neg{color:#b3261e;font-weight:bold}.small{color:#777;font-size:11px}</style></head><body><h1>'+esc_(title)+'</h1>'+body+'</body></html>';
 }
 
@@ -440,31 +455,34 @@ function wochenbericht(){
   var days=[]; for(var i=7;i>=1;i--) days.push(Utilities.formatDate(new Date(Date.now()-i*864e5),TZ,"yyyy-MM-dd"));
   var inRange=function(d){ return days.indexOf(d)>=0; };
   var closes={}; rows_("Abschlüsse").forEach(function(r){ var d=day_(r[1]); if(inRange(d)){ var o=json_(r[20],{}); o.staff=String(r[3]||o.staff||""); if(!closes[d]||o.at>closes[d].at) closes[d]=o; } });
-  var sales={}; rows_("Zahlungen").forEach(function(r){ var d=day_(r[1]); if(!inRange(d)) return; var m=methodKey_(r[5]); sales[d]=sales[d]||{bar:0,ec:0,paypal:0,tip:0}; sales[d][m]=(sales[d][m]||0)+num_(r[6]); sales[d].tip+=num_(r[12]||0); });
+  var menuW=load_().s.menu;
+  var sales={}; rows_("Zahlungen").forEach(function(r){ var d=day_(r[1]); if(!inRange(d)) return; var m=methodKey_(r[5]); sales[d]=sales[d]||{bar:0,ec:0,paypal:0,tip:0,cigar:0}; sales[d][m]=(sales[d][m]||0)+num_(r[6]); sales[d].tip+=num_(r[12]||0);
+    sales[d].cigar+=(r[13]!==""&&r[13]!==undefined)?num_(r[13]):cigarSplit(json_(r[11],[]),menuW).sum; });
   var exps={}; rows_("Auslagen").forEach(function(r){ var d=day_(r[1]); if(inRange(d)) exps[d]=(exps[d]||0)+num_(r[4]); });
-  var T={bar:0,ec:0,paypal:0,total:0,exp:0,diff:0,take:0,tip:0}, rows="", missing=0;
+  var T={bar:0,ec:0,paypal:0,total:0,exp:0,diff:0,take:0,tip:0,cigar:0}, rows="", missing=0;
   days.forEach(function(d){
     var c=closes[d], s=sales[d]; if(!c && !s && !exps[d]) return;
     var label=Utilities.formatDate(new Date(d+"T12:00:00"),TZ,"EEE dd.MM.");
-    var v=c||{bar:r2(s?s.bar:0),ec:r2(s?s.ec:0),paypal:r2(s?s.paypal:0),exp:r2(exps[d]||0),tip:r2(s?s.tip:0)};
+    var v=c||{bar:r2(s?s.bar:0),ec:r2(s?s.ec:0),paypal:r2(s?s.paypal:0),exp:r2(exps[d]||0),tip:r2(s?s.tip:0),cigar:r2(s?s.cigar:0)};
+    if(c && (c.cigar===undefined||c.cigar===null)) c.cigar=r2(s?s.cigar:0);
     v.total=r2((v.bar||0)+(v.ec||0)+(v.paypal||0));
-    ["bar","ec","paypal","total","exp","tip"].forEach(function(k){ T[k]+=v[k]||0; });
+    ["bar","ec","paypal","total","exp","tip","cigar"].forEach(function(k){ T[k]+=v[k]||0; });
     if(c){ T.diff+=c.diff||0; T.take+=c.take||0; } else missing++;
     rows+='<tr'+(c?'':' class="miss"')+'><td>'+label+'</td><td>'+(c?esc_(c.staff||""):"⚠ kein Kassensturz")+'</td><td>'+fmtE(v.bar)+'</td><td>'+fmtE(v.ec)+'</td><td>'+fmtE(v.paypal)+
-      '</td><td><b>'+fmtE(v.total)+'</b></td><td>'+fmtE(v.tip||0)+'</td><td>'+fmtE(v.exp)+'</td><td'+(c&&c.diff<-0.004?' class="neg"':'')+'>'+(c?(c.diff>0.004?"+":"")+fmtE(c.diff):"–")+'</td><td>'+(c?fmtE(c.take):"–")+'</td><td>'+(c&&c.note?esc_(c.note):"")+'</td></tr>';
+      '</td><td><b>'+fmtE(v.total)+'</b></td><td>'+fmtE(v.cigar||0)+'</td><td>'+fmtE(v.tip||0)+'</td><td>'+fmtE(v.exp)+'</td><td'+(c&&c.diff<-0.004?' class="neg"':'')+'>'+(c?(c.diff>0.004?"+":"")+fmtE(c.diff):"–")+'</td><td>'+(c?fmtE(c.take):"–")+'</td><td>'+(c&&c.note?esc_(c.note):"")+'</td></tr>';
   });
   var debts=rows_("Schulden").filter(function(r){ return String(r[5]||"offen")==="offen"; }).map(function(r){ return {name:String(r[1]), rest:num_(r[4]), since:String(r[6]||"")}; }).sort(function(a,b){ return b.rest-a.rest; });
   var debtSum=debts.reduce(function(a,d){ return a+d.rest; },0);
   var openTabs=rows_("Deckel");
   var from=Utilities.formatDate(new Date(days[0]+"T12:00:00"),TZ,"dd.MM."), till=Utilities.formatDate(new Date(days[6]+"T12:00:00"),TZ,"dd.MM.yyyy");
   var body='<p class="small">'+from+' – '+till+(missing?' · <span class="neg">'+missing+' Tag(e) ohne Kassensturz</span>':' · alle Tage abgeschlossen ✓')+'</p>'+
-    (rows?'<table><tr><th>Tag</th><th>Kassensturz von</th><th>Bar</th><th>EC</th><th>PayPal</th><th>Gesamt</th><th>Trinkgeld</th><th>Auslagen</th><th>Differenz</th><th>Entnahme</th><th>Notiz</th></tr>'+rows+
-    '<tr><th>Summe</th><th></th><th>'+fmtE(T.bar)+'</th><th>'+fmtE(T.ec)+'</th><th>'+fmtE(T.paypal)+'</th><th>'+fmtE(T.total)+'</th><th>'+fmtE(T.tip)+'</th><th>'+fmtE(T.exp)+'</th><th>'+(T.diff>0.004?"+":"")+fmtE(T.diff)+'</th><th>'+fmtE(T.take)+'</th><th></th></tr></table>'
+    (rows?'<table><tr><th>Tag</th><th>Kassensturz von</th><th>Bar</th><th>EC</th><th>PayPal</th><th>Gesamt</th><th>davon Zigarren</th><th>Trinkgeld</th><th>Auslagen</th><th>Differenz</th><th>Entnahme</th><th>Notiz</th></tr>'+rows+
+    '<tr><th>Summe</th><th></th><th>'+fmtE(T.bar)+'</th><th>'+fmtE(T.ec)+'</th><th>'+fmtE(T.paypal)+'</th><th>'+fmtE(T.total)+'</th><th>'+fmtE(T.cigar)+'</th><th>'+fmtE(T.tip)+'</th><th>'+fmtE(T.exp)+'</th><th>'+(T.diff>0.004?"+":"")+fmtE(T.diff)+'</th><th>'+fmtE(T.take)+'</th><th></th></tr></table>'
     :'<p>Keine Umsätze in dieser Woche.</p>')+
     '<h1 style="font-size:16px;margin-top:22px">Offene Schulden: '+fmtE(debtSum)+'</h1>'+
     (debts.length?'<table><tr><th>Name</th><th>seit</th><th>offen</th></tr>'+debts.map(function(d){ return '<tr><td>'+esc_(d.name)+'</td><td>'+esc_(d.since)+'</td><td>'+fmtE(d.rest)+'</td></tr>'; }).join("")+'</table>':'<p>Keine.</p>')+
     '<p class="small">Gerade offene Deckel: '+openTabs.length+'. Details stehen in der Google-Tabelle.</p>';
   var html=page_("Prediger · Wochenbericht", body);
-  var subj="Prediger · Woche "+from+"–"+till+" · "+fmtE(T.total)+(missing?" · ⚠ "+missing+"× kein Kassensturz":"")+" · Diff "+(T.diff>0.004?"+":"")+fmtE(T.diff);
+  var subj="Prediger · Woche "+from+"–"+till+" · "+fmtE(T.total)+(T.cigar?" (Zigarren "+fmtE(T.cigar)+")":"")+(missing?" · ⚠ "+missing+"× kein Kassensturz":"")+" · Diff "+(T.diff>0.004?"+":"")+fmtE(T.diff);
   MailApp.sendEmail({to:to, subject:subj, htmlBody:html, name:"Prediger Deckel", attachments:[pdf_(html,"Prediger_Woche_"+days[6])]});
 }

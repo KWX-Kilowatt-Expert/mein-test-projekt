@@ -267,6 +267,12 @@ h4{margin:16px 0 6px;font-size:12px;letter-spacing:.1em;text-transform:uppercase
 .tipbox{display:grid;grid-template-columns:1fr auto;align-items:baseline;gap:2px 10px;margin:10px 0 4px;padding:12px 14px;border-radius:12px;border:1px solid #5c4527;background:linear-gradient(180deg,#2e2416,#231a10)}
 .tipbox b{font-family:var(--serif);font-size:24px;color:var(--gold2)}
 .tipbox small{grid-column:1/-1;color:var(--muted);font-size:12px}
+.cigarbox{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 0}
+.cigarbox>div{padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--bg2)}
+.cigarbox>div:nth-child(2){border-color:#6b4a2a;background:linear-gradient(180deg,#2f2014,#22170e)}
+.cigarbox small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em}
+.cigarbox b{font-family:var(--serif);font-size:24px}
+.cigarbox p{grid-column:1/-1;margin:0;color:var(--muted);font-size:13px}
 .err{color:#f0a58f;font-size:14px;margin-top:8px;min-height:18px}
 
 @media (max-width:1250px){ .sub{display:none} }
@@ -657,7 +663,7 @@ function addItem(id,d,p,silent){
   const t=T(); if(!t) return;
   p=p||t.meta[id]||prod(id); if(!p) return;
   if(d<0 && !(t.items[id]>0)) return;
-  dispatch({t:"add",tab:t.id,item:id,d,name:p.name,price:p.price});
+  dispatch({t:"add",tab:t.id,item:id,d,name:p.name,price:p.price,cat:p.cat||(prod(id)||{}).cat||""});
   sessAdd+=d; if(d>0) buzz(12);
   if(!silent && d>0){
     undoStack.push({tab:t.id,id}); toast(`+1 ${p.name}`);
@@ -698,24 +704,25 @@ function customDialog(){
   modal(`<h2>Freier Artikel</h2><p class="hint">Für Zigarren, Sonderwünsche oder Preise, die nicht auf der Karte stehen.</p>
     <input class="field" id="cn" placeholder="Bezeichnung, z. B. Zigarre Cohiba Siglo II" autocomplete="off">
     <input class="field num" id="cp" style="margin-top:10px" inputmode="decimal" placeholder="Preis in €, z. B. 14,50">
-    <label style="display:flex;gap:10px;align-items:center;margin-top:14px;font-size:15px"><input type="checkbox" id="ck" checked style="width:22px;height:22px"> fest in die Karte aufnehmen, Kategorie:</label>
+    <span class="lbl">Kategorie</span>
     ${catPicker("cc", curCat!=="★"&&cats.includes(curCat)?curCat:"Zigarren")}
+    <label style="display:flex;gap:10px;align-items:center;margin-top:14px;font-size:15px"><input type="checkbox" id="ck" checked style="width:22px;height:22px"> fest in die Karte aufnehmen</label>
     <div class="err" id="ce"></div>
     <div class="row"><button class="btn" id="cx">Abbrechen</button><button class="btn pri" id="ok">Hinzufügen</button></div>`);
   focusLater("#cn",50);
   wireCatPicker("cc");
-  $("#ck").onchange=()=>{ $("#cc-wrap").style.display=$("#ck").checked?"":"none"; };
   $("#cx").onclick=()=>closeModal();
   $("#ok").onclick=()=>{
     const n=$("#cn").value.trim(), p=parseEur($("#cp").value);
     if(!n){ $("#ce").textContent="Bitte eine Bezeichnung eingeben."; return; }
     if(!(p>=0)){ $("#ce").textContent="Bitte einen gültigen Preis eingeben."; return; }
     closeModal();
+    const cat=$("#cc").value.trim()||"Zigarren";
     if($("#ck").checked){
-      const id="m-"+uid(), cat=$("#cc").value.trim()||"Zigarren";
+      const id="m-"+uid();
       dispatch({t:"menuSet",item:{id,cat,name:n,price:p,desc:""}});
-      addItem(id,1,{name:n,price:p});
-    } else addItem("x-"+uid(),1,{name:n,price:p});
+      addItem(id,1,{name:n,price:p,cat});
+    } else addItem("x-"+uid(),1,{name:n,price:p,cat});
   };
 }
 
@@ -957,6 +964,8 @@ function dayFigures(day){
     tipEc:r2(pays.filter(p=>p.method==="ec").reduce((s,p)=>s+(p.tip||0),0)),
     tipPaypal:r2(pays.filter(p=>p.method==="paypal").reduce((s,p)=>s+(p.tip||0),0)),
     tip:r2(pays.reduce((s,p)=>s+(p.tip||0),0)),
+    ...(()=>{ const c=cigarSplit(pays.flatMap(p=>p.lines||[]),V.menu);
+      return {cigar:c.sum, cigarCount:c.count, cigars:Object.entries(c.items).sort((a,b)=>b[1]-a[1])}; })(),
     openSum:r2(V.tabs.reduce((s,t)=>s+tabTotal(t),0)), openCount:V.tabs.length,
     top:Object.entries(top).sort((a,b)=>b[1]-a[1]).slice(0,8) };
 }
@@ -978,6 +987,9 @@ function dayDialog(day=dayKey()){
       <div class="stat red"><small>Angeschrieben</small><b class="num">${eur(f.debtNew)}</b></div>
       <div class="stat"><small>Noch offen (Deckel)</small><b class="num">${eur(f.openSum)}</b></div>
     </div>
+    <div class="cigarbox"><div><small>🥃 Getränke</small><b class="num">${eur(f.total-f.cigar)}</b></div>
+      <div><small>🚬 Zigarren · ${f.cigarCount} Stück</small><b class="num">${eur(f.cigar)}</b></div>
+      ${f.cigars.length?`<p>${f.cigars.map(([n,q])=>`${q}× ${esc(n)}`).join(" · ")}</p>`:""}</div>
     <div class="tipbox"><span>💛 Trinkgeld heute</span><b class="num">${eur(f.tip)}</b><small>Bar ${eur(f.tipBar)} · EC ${eur(f.tipEc)} · PayPal ${eur(f.tipPaypal)}</small></div>
     ${closes.length?`<div class="list">${closes.map(c=>`<button class="dl" data-cl="${c.id}"><span class="who">✓ Abgeschlossen ${timeStr(c.at)}<small>${esc(c.staff)} · Differenz ${eur(c.diff)}</small></span><span class="amt p">Bericht ›</span></button>`).join("")}</div>`:""}
     <div class="row"><button class="btn gold" id="tClose">${closes.length?"Erneut abschließen":"Feierabend · Tagesabschluss"}</button></div>
@@ -1001,7 +1013,7 @@ function allDoneDialog(){
   modal(`<div class="alldone"><div class="adicon">🥃</div><h2>Alle Deckel kassiert</h2>
     <p class="hint">Kein offener Deckel mehr im Laden.</p>
     <div class="stats"><div class="stat hl"><small>Heute eingenommen</small><b class="num">${eur(f.total)}</b></div>
-      <div class="stat"><small>Davon Bar</small><b class="num">${eur(f.bar)}</b></div>
+      <div class="stat"><small>Davon Zigarren 🚬</small><b class="num">${eur(f.cigar)}</b></div>
       <div class="stat"><small>Zahlungen</small><b class="num">${f.pays.length}</b></div></div></div>
     <div class="row"><button class="btn" id="cx">Später</button><button class="btn gold" id="ok">Kassensturz machen</button></div>`);
   $("#cx").onclick=()=>closeModal(); $("#ok").onclick=()=>closeDialog(d);
@@ -1051,7 +1063,7 @@ function closeDialog(day){
       const r2=x=>Math.round(x*100)/100, s0=isNaN(st)?0:st, f0=isNaN(fl)?0:fl, soll=r2(s0+f.bar+f.tipBar-f.exp);
       const report={day, bar:f.bar, ec:f.ec, paypal:f.paypal, total:f.total, exp:f.exp, start:s0, soll, counted:c, diff:r2(c-soll),
         float:f0, take:r2(c-f0), ecTerm:isNaN(et)?null:et, debtNew:f.debtNew, debtPaid:f.debtPaid, openSum:f.openSum, openCount:f.openCount,
-        note:v.note.trim(), payCount:f.pays.length, tip:f.tip, tipBar:f.tipBar, tipEc:f.tipEc, tipPaypal:f.tipPaypal, timeStr:timeStr(Date.now()), dateLabel:new Date(day+"T12:00").toLocaleDateString("de-DE",{weekday:"long",day:"numeric",month:"long",year:"numeric"}),
+        note:v.note.trim(), payCount:f.pays.length, tip:f.tip, tipBar:f.tipBar, tipEc:f.tipEc, tipPaypal:f.tipPaypal, cigar:f.cigar, cigarCount:f.cigarCount, cigars:f.cigars, timeStr:timeStr(Date.now()), dateLabel:new Date(day+"T12:00").toLocaleDateString("de-DE",{weekday:"long",day:"numeric",month:"long",year:"numeric"}),
         exps:f.exps.map(e=>[e.what,e.amount]), debts:f.newDebts.map(d=>[d.name,d.amount]), top:f.top};
       const pid=uid(); dispatch({t:"close",pid,report}); closeModal();
       const ok=Math.abs(report.diff)<0.005;
