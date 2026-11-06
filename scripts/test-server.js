@@ -49,6 +49,17 @@ assert.ok(r2.state, "neuer Stand nach Bearbeitung"); assert.strictEqual(r2.state
 sheets.Karte.data.push(["","Zigarren","Montecristo No. 4",18,""]);
 r=api({pin:"0000",ops:[op({t:"resetStats"})]});
 assert.ok(r.state.menu.find(m=>m.id==="montecristo-no-4")); assert.ok(sheets.Karte.data.some(x=>x[0]==="montecristo-no-4"));
+// Trinkgeld wird getrennt gespeichert
+r=api({pin:"0000",ops:[op({t:"open",tab:"T9",area:"t1",name:"Anna"}),op({t:"add",tab:"T9",item:"cuba-libre",d:2,name:"Cuba Libre",price:8.5}),
+  op({t:"pay",tab:"T9",sel:{"cuba-libre":2},method:"ec",pid:"PT",tip:3})]});
+const pt=r.state.payments.find(x=>x.id==="PT"); assert.strictEqual(pt.amount,17); assert.strictEqual(pt.tip,3);
+const zr=sheets.Zahlungen.data.find(x=>x[0]==="PT"); assert.strictEqual(zr[12],3, "Spalte Trinkgeld");
+assert.strictEqual(sheets.Zahlungen.data[0][12],"Trinkgeld");
+assert.strictEqual(api({pin:"0000",since:-1,ops:[]}).state.payments.find(x=>x.id==="PT").tip,3, "Trinkgeld aus Tabelle geladen");
+// Alte Tabelle ohne Trinkgeld-Spalte bekommt die Überschrift ergänzt
+sheets.Zahlungen.data[0]=sheets.Zahlungen.data[0].slice(0,12); ctx.hdrOk_={};
+api({pin:"0000",ops:[op({t:"expense",pid:"EX9",what:"Test",amount:1})]});
+assert.strictEqual(sheets.Zahlungen.data[0][12],"Trinkgeld", "Überschrift nachgerüstet");
 // Einrichten: Einstellungen + Wochen-Trigger
 ctx.einrichten();
 assert.ok(sheets.Einstellungen.data.some(r=>r[0]==="Bericht an" && r[1]==="chef@example.com"));
