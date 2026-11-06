@@ -218,6 +218,16 @@ h4{margin:16px 0 6px;font-size:12px;letter-spacing:.1em;text-transform:uppercase
 @keyframes okpop{0%{transform:scale(.6);opacity:0}100%{transform:scale(1);opacity:1}}
 @keyframes okring{to{stroke-dashoffset:0}}
 @keyframes okcheck{to{stroke-dashoffset:0}}
+.okwrap{position:relative;width:120px;height:120px}
+.okburst{position:absolute;left:50%;top:50%;width:0;height:0}
+.okburst i{position:absolute;left:0;top:0;width:12px;height:12px;margin:-6px;box-shadow:0 0 10px var(--c);border-radius:50%;background:var(--c);opacity:0;transform:rotate(var(--a)) translateY(0);animation:burst 1s var(--d) cubic-bezier(.15,.8,.3,1) forwards}
+@keyframes burst{0%{opacity:1;transform:rotate(var(--a)) translateY(-40px) scale(1)}100%{opacity:0;transform:rotate(var(--a)) translateY(-110px) scale(.3)}}
+.okfx.gold .okcard{background:#221a0c;border-color:var(--gold);box-shadow:0 20px 60px rgba(0,0,0,.6),0 0 0 6px rgba(208,168,87,.14)}
+.okfx.gold .okring{fill:#a8822f;stroke:var(--gold2)} .okfx.gold .okname{color:#fbefd2} .okfx.gold .okinfo{color:var(--gold2)}
+.okfx.red .okcard{background:#2a1210;border-color:var(--red2);box-shadow:0 20px 60px rgba(0,0,0,.6),0 0 0 6px rgba(200,68,58,.15)}
+.okfx.red .okring{fill:var(--red);stroke:#ff8b7d} .okfx.red .okname{color:#ffe1dc} .okfx.red .okinfo{color:#ffb3a6}
+.plus1{position:absolute;left:50%;top:38%;transform:translateX(-50%);font:800 22px/1 var(--sans);color:var(--gold2);text-shadow:0 2px 10px rgba(0,0,0,.6);pointer-events:none;animation:plus1 .75s ease-out forwards}
+@keyframes plus1{0%{opacity:0;transform:translate(-50%,8px) scale(.5)}20%{opacity:1;transform:translate(-50%,0) scale(1.25)}100%{opacity:0;transform:translate(-50%,-38px) scale(1)}}
 .chip.pulse{animation:chippulse 1.6s ease-out}
 @keyframes chippulse{0%{box-shadow:0 0 0 0 rgba(111,208,111,.9);border-color:#6fd06f}70%{box-shadow:0 0 0 16px rgba(111,208,111,0);border-color:#6fd06f}100%{box-shadow:none}}
 .err{color:#f0a58f;font-size:14px;margin-top:8px;min-height:18px}
@@ -301,7 +311,7 @@ h4{margin:16px 0 6px;font-size:12px;letter-spacing:.1em;text-transform:uppercase
 
 <div class="modal" id="modal"><div class="box" id="box"></div></div>
 <div class="okfx" id="okfx" aria-live="polite"><div class="okcard">
-  <svg class="okcircle" viewBox="0 0 120 120"><circle class="okring" cx="60" cy="60" r="52"/><path class="okcheck" d="M36 62 l16 16 l32 -34"/></svg>
+  <div class="okwrap"><div class="okburst" id="okBurst"></div><svg class="okcircle" viewBox="0 0 120 120"><circle class="okring" cx="60" cy="60" r="52"/><path class="okcheck" d="M36 62 l16 16 l32 -34"/></svg></div>
   <div class="okname" id="okName"></div><div class="okinfo" id="okInfo"></div></div></div>
 <div class="toast" id="toast"><span id="toastMsg"></span><button id="toastUndo">Rückgängig</button></div>
 
@@ -529,15 +539,20 @@ function openTab(id){ sessAdd=0; cur=id; curCat="★"; $("#q").value=""; $("#she
 function closeTab(){ cur=null; $("#sheet").classList.remove("open"); hideToast(); if(V) renderFloor(); }
 $("#btnBack").onclick=closeTab;
 let okBusy=false;
+/* Bestätigungs-Animation: variant "" = grün (gebucht), "gold" = bezahlt, "red" = angeschrieben */
+function showFx(name,info,variant,after){
+  $("#okName").textContent=name; $("#okInfo").textContent=info;
+  const cols=variant==="gold"?["#e8c77d","#fff3d1","#d0a857"]:variant==="red"?["#ff8b7d","#ffd2cb","#c8443a"]:["#6fd06f","#e8c77d","#b9f0b0"];
+  $("#okBurst").innerHTML=Array.from({length:16},(_,i)=>`<i style="--a:${i*22.5}deg;--c:${cols[i%3]};--d:${.28+(i%4)*.03}s"></i>`).join("");
+  hideToast(); buzz(variant==="red"?[60,50,60]:[25,40,60]);
+  const fx=$("#okfx"); fx.className="okfx"+(variant?" "+variant:""); void fx.offsetWidth; fx.classList.add("show");
+  setTimeout(()=>{ fx.classList.remove("show"); if(after) after(); },1150);
+}
 $("#btnOk").onclick=()=>{
   const t=T(); if(!t||okBusy) return; okBusy=true;
   const n=Object.values(t.items).reduce((s,q)=>s+q,0);
-  $("#okName").textContent=t.name;
-  $("#okInfo").textContent=(sessAdd>0?`+${sessAdd} gebucht · `:"")+`${n} Getränk${n===1?"":"e"} · ${eur(tabTotal(t))}`;
-  hideToast(); buzz([25,40,60]);
-  const fx=$("#okfx"); fx.classList.remove("show"); void fx.offsetWidth; fx.classList.add("show");
-  setTimeout(()=>{ fx.classList.remove("show"); pulseTab=t.id; closeTab(); okBusy=false;
-    setTimeout(()=>{ pulseTab=null; },1700); },1050);
+  showFx(t.name,(sessAdd>0?`+${sessAdd} gebucht · `:"")+`${n} Getränk${n===1?"":"e"} · ${eur(tabTotal(t))}`,"",()=>{
+    pulseTab=t.id; closeTab(); okBusy=false; setTimeout(()=>{ pulseTab=null; },1700); });
 };
 
 function renderTab(){
@@ -606,7 +621,8 @@ function addItem(id,d,p,silent){
   sessAdd+=d; if(d>0) buzz(12);
   if(!silent && d>0){
     undoStack.push({tab:t.id,id}); toast(`+1 ${p.name}`);
-    const b=document.querySelector(`.prod[data-id="${CSS.escape(id)}"]`); if(b){ b.classList.remove("flash"); void b.offsetWidth; b.classList.add("flash"); }
+    const b=document.querySelector(`.prod[data-id="${CSS.escape(id)}"]`); if(b){ b.classList.remove("flash"); void b.offsetWidth; b.classList.add("flash");
+      const pl=document.createElement("span"); pl.className="plus1"; pl.textContent="+1"; b.appendChild(pl); setTimeout(()=>pl.remove(),800); }
   }
 }
 let toastTimer;
@@ -763,7 +779,8 @@ function payDialog(){
       closeModal();
       if(all){ cur=null; closeTab(); }
       dispatch({t:"pay",tab:t.id,sel:s,method,pid:uid(),debtName:debtName.trim(),note:note.trim()});
-      toast(method==="schulden" ? `${eur(sum)} bei ${debtName.trim()} angeschrieben` : `${t.name}: ${eur(sum)} · ${METHODS[method]} ✓`, false);
+      if(method==="schulden") showFx(debtName.trim(),`${eur(sum)} angeschrieben`,"red");
+      else showFx(t.name,`${all?"":"Teil · "}${eur(sum)} · ${METHODS[method]}`,"gold");
     };
   };
   draw();
