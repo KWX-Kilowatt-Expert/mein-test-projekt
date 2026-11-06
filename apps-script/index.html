@@ -231,6 +231,8 @@ h4{margin:16px 0 6px;font-size:12px;letter-spacing:.1em;text-transform:uppercase
 .plus1.combo{color:#f2cf73;text-shadow:0 0 12px rgba(232,199,125,.9),0 2px 10px rgba(0,0,0,.6)}
 .chip.pulse{animation:chippulse 1.6s ease-out}
 @keyframes chippulse{0%{box-shadow:0 0 0 0 rgba(111,208,111,.9);border-color:#6fd06f}70%{box-shadow:0 0 0 16px rgba(111,208,111,0);border-color:#6fd06f}100%{box-shadow:none}}
+.alldone{text-align:center}.alldone .stats{text-align:left}
+.adicon{font-size:54px;line-height:1;margin:4px 0 6px;animation:okpop .5s cubic-bezier(.2,1.4,.4,1)}
 .err{color:#f0a58f;font-size:14px;margin-top:8px;min-height:18px}
 
 @media (max-width:1250px){ .sub{display:none} }
@@ -539,7 +541,7 @@ const T = () => V && V.tabs.find(t=>t.id===cur);
 function openTab(id){ sessAdd=0; cur=id; curCat="★"; $("#q").value=""; $("#sheet").classList.add("open"); renderTab(); }
 function closeTab(){ cur=null; $("#sheet").classList.remove("open"); hideToast(); if(V) renderFloor(); }
 $("#btnBack").onclick=closeTab;
-let okBusy=false;
+let okBusy=false, fxTimer=null;
 /* Bestätigungs-Animation: variant "" = grün (gebucht), "gold" = bezahlt, "red" = angeschrieben */
 function showFx(name,info,variant,after){
   $("#okName").textContent=name; $("#okInfo").textContent=info;
@@ -547,7 +549,9 @@ function showFx(name,info,variant,after){
   $("#okBurst").innerHTML=Array.from({length:16},(_,i)=>`<i style="--a:${i*22.5}deg;--c:${cols[i%3]};--d:${.28+(i%4)*.03}s"></i>`).join("");
   hideToast(); buzz(variant==="red"?[60,50,60]:[25,40,60]);
   const fx=$("#okfx"); fx.className="okfx"+(variant?" "+variant:""); void fx.offsetWidth; fx.classList.add("show");
-  setTimeout(()=>{ fx.classList.remove("show"); if(after) after(); },1150);
+  let done=false; const finish=()=>{ if(done) return; done=true; clearTimeout(fxTimer); fx.classList.remove("show"); fx.onclick=null; if(after) after(); };
+  fx.onclick=finish;                       // Antippen = sofort weiter
+  clearTimeout(fxTimer); fxTimer=setTimeout(finish,1150);
 }
 $("#btnOk").onclick=()=>{
   const t=T(); if(!t||okBusy) return; okBusy=true;
@@ -782,8 +786,10 @@ function payDialog(){
       closeModal();
       if(all){ cur=null; closeTab(); }
       dispatch({t:"pay",tab:t.id,sel:s,method,pid:uid(),debtName:debtName.trim(),note:note.trim()});
-      if(method==="schulden") showFx(debtName.trim(),`${eur(sum)} angeschrieben`,"red");
-      else showFx(t.name,`${all?"":"Teil · "}${eur(sum)} · ${METHODS[method]}`,"gold");
+      const lastOne = all && V.tabs.length===0;
+      const next = lastOne ? ()=>allDoneDialog() : null;
+      if(method==="schulden") showFx(debtName.trim(),`${eur(sum)} angeschrieben`,"red",next);
+      else showFx(t.name,`${all?"":"Teil · "}${eur(sum)} · ${METHODS[method]}`,"gold",next);
     };
   };
   draw();
@@ -901,6 +907,17 @@ function dayDialog(day=dayKey()){
   $("#tFav").onclick=()=>{ if(confirm("Verkaufszähler für die Favoriten auf Null setzen? (gilt für alle Geräte)")){ dispatch({t:"resetStats"}); toast("Favoriten zurückgesetzt",false); } };
 }
 
+function allDoneDialog(){
+  const d=dayKey(), f=dayFigures(d);
+  modal(`<div class="alldone"><div class="adicon">🥃</div><h2>Alle Deckel kassiert</h2>
+    <p class="hint">Kein offener Deckel mehr im Laden.</p>
+    <div class="stats"><div class="stat hl"><small>Heute eingenommen</small><b class="num">${eur(f.total)}</b></div>
+      <div class="stat"><small>Davon Bar</small><b class="num">${eur(f.bar)}</b></div>
+      <div class="stat"><small>Zahlungen</small><b class="num">${f.pays.length}</b></div></div></div>
+    <div class="row"><button class="btn" id="cx">Später</button><button class="btn gold" id="ok">Kassensturz machen</button></div>`);
+  $("#cx").onclick=()=>closeModal(); $("#ok").onclick=()=>closeDialog(d);
+}
+
 /* ---------- Tagesabschluss / Kassensturz ---------- */
 function closeDialog(day){
   const f=dayFigures(day);
@@ -946,8 +963,10 @@ function closeDialog(day){
         float:f0, take:r2(c-f0), ecTerm:isNaN(et)?null:et, debtNew:f.debtNew, debtPaid:f.debtPaid, openSum:f.openSum, openCount:f.openCount,
         note:v.note.trim(), payCount:f.pays.length, timeStr:timeStr(Date.now()), dateLabel:new Date(day+"T12:00").toLocaleDateString("de-DE",{weekday:"long",day:"numeric",month:"long",year:"numeric"}),
         exps:f.exps.map(e=>[e.what,e.amount]), debts:f.newDebts.map(d=>[d.name,d.amount]), top:f.top};
-      const pid=uid(); dispatch({t:"close",pid,report});
-      reportDialog(V.closes.find(x=>x.id===pid)||Object.assign({id:pid,at:Date.now(),staff},report),day);
+      const pid=uid(); dispatch({t:"close",pid,report}); closeModal();
+      const ok=Math.abs(report.diff)<0.005;
+      showFx("Feierabend!", ok?"Kasse stimmt auf den Cent ✓":`Differenz ${report.diff>0?"+":""}${eur(report.diff)}`, report.diff<-0.005?"red":"gold",
+        ()=>reportDialog(V.closes.find(x=>x.id===pid)||Object.assign({id:pid,at:Date.now(),staff},report),day));
     };
   };
   draw();
