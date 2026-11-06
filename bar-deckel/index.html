@@ -227,7 +227,8 @@ h4{margin:16px 0 6px;font-size:12px;letter-spacing:.1em;text-transform:uppercase
 .okfx.red .okcard{background:#2a1210;border-color:var(--red2);box-shadow:0 20px 60px rgba(0,0,0,.6),0 0 0 6px rgba(200,68,58,.15)}
 .okfx.red .okring{fill:var(--red);stroke:#ff8b7d} .okfx.red .okname{color:#ffe1dc} .okfx.red .okinfo{color:#ffb3a6}
 .plus1{position:absolute;left:50%;top:38%;transform:translateX(-50%);font:800 22px/1 var(--sans);color:var(--gold2);text-shadow:0 2px 10px rgba(0,0,0,.6);pointer-events:none;animation:plus1 .75s ease-out forwards}
-@keyframes plus1{0%{opacity:0;transform:translate(-50%,8px) scale(.5)}20%{opacity:1;transform:translate(-50%,0) scale(1.25)}100%{opacity:0;transform:translate(-50%,-38px) scale(1)}}
+@keyframes plus1{0%{opacity:0;transform:translate(-50%,8px) scale(calc(var(--s,1)*.5))}20%{opacity:1;transform:translate(-50%,0) scale(calc(var(--s,1)*1.25))}100%{opacity:0;transform:translate(-50%,-38px) scale(var(--s,1))}}
+.plus1.combo{color:#f2cf73;text-shadow:0 0 12px rgba(232,199,125,.9),0 2px 10px rgba(0,0,0,.6)}
 .chip.pulse{animation:chippulse 1.6s ease-out}
 @keyframes chippulse{0%{box-shadow:0 0 0 0 rgba(111,208,111,.9);border-color:#6fd06f}70%{box-shadow:0 0 0 16px rgba(111,208,111,0);border-color:#6fd06f}100%{box-shadow:none}}
 .err{color:#f0a58f;font-size:14px;margin-top:8px;min-height:18px}
@@ -647,7 +648,7 @@ function newGuest(area){
 /* =========================================================
    Deckel
    ========================================================= */
-let cur=null, curCat="★", undoStack=[], sessAdd=0, pulseTab=null;
+let cur=null, curCat="★", undoStack=[], sessAdd=0, pulseTab=null, combo={id:null,n:0,t:0};
 const buzz = p => { try{ if(navigator.vibrate) navigator.vibrate(p); }catch(e){} };
 const T = () => V && V.tabs.find(t=>t.id===cur);
 
@@ -738,7 +739,9 @@ function addItem(id,d,p,silent){
   if(!silent && d>0){
     undoStack.push({tab:t.id,id}); toast(`+1 ${p.name}`);
     const b=document.querySelector(`.prod[data-id="${CSS.escape(id)}"]`); if(b){ b.classList.remove("flash"); void b.offsetWidth; b.classList.add("flash");
-      const pl=document.createElement("span"); pl.className="plus1"; pl.textContent="+1"; b.appendChild(pl); setTimeout(()=>pl.remove(),800); }
+      const now=Date.now(); combo = (combo.id===id && now-combo.t<1400) ? {id,n:combo.n+1,t:now} : {id,n:1,t:now};
+      const pl=document.createElement("span"); pl.className="plus1"+(combo.n>1?" combo":""); pl.textContent="+"+combo.n;
+      pl.style.setProperty("--s", Math.min(1+0.18*(combo.n-1),1.9)); b.appendChild(pl); setTimeout(()=>pl.remove(),800); }
   }
 }
 let toastTimer;
