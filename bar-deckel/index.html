@@ -273,6 +273,13 @@ h4{margin:16px 0 6px;font-size:12px;letter-spacing:.1em;text-transform:uppercase
 .cigarbox small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em}
 .cigarbox b{font-family:var(--serif);font-size:24px}
 .cigarbox p{grid-column:1/-1;margin:0;color:var(--muted);font-size:13px}
+button.li.pay{width:100%;text-align:left;font:inherit;color:inherit;background:none;border:0;border-bottom:1px solid var(--line);cursor:pointer}
+button.li.pay:active{background:var(--panel2)}
+button.li.pay .mth{font-weight:600}
+.li.void>span{text-decoration:line-through;opacity:.55}
+.li.void .vd,.vd{color:#f0a58f;text-decoration:none}
+.btn.wide{width:100%}
+.btn.danger{border-color:#7a3a2a;color:#f0a58f}
 .err{color:#f0a58f;font-size:14px;margin-top:8px;min-height:18px}
 
 @media (max-width:1250px){ .sub{display:none} }
@@ -420,7 +427,7 @@ function applyOp(s, op){
       for(var it in op.sel){
         var n=Math.min(op.sel[it]||0, t.items[it]||0); if(n<=0) continue;
         var m=t.meta[it]||{name:it,price:0};
-        lines.push({name:m.name, price:m.price, qty:n, cat:m.cat||""}); sum+=m.price*n;
+        lines.push({id:it, name:m.name, price:m.price, qty:n, cat:m.cat||""}); sum+=m.price*n;
         if(t.items[it]-n>0) t.items[it]-=n; else { delete t.items[it]; delete t.meta[it]; }
       }
       sum=r2(sum); if(!lines.length) return;
@@ -429,7 +436,7 @@ function applyOp(s, op){
         s.debts.push({id:op.pid, name:op.debtName||t.name, created:op.at, amount:sum, paid:0, status:"offen", note:op.note||"", lines:lines, staff:op.staff||"", closed:0});
         addRegular(s,op.debtName||t.name);
       } else {
-        s.payments.push({id:op.pid, day:op.day, at:op.at, name:t.name, area:t.area, method:op.method, amount:sum, kind:emptied?"deckel":"teil", lines:lines, staff:op.staff||"", tip:r2(Math.max(0,Number(op.tip)||0))});
+        s.payments.push({id:op.pid, day:op.day, at:op.at, name:t.name, area:t.area, method:op.method, amount:sum, kind:emptied?"deckel":"teil", lines:lines, staff:op.staff||"", tip:r2(Math.max(0,Number(op.tip)||0)), tab:t.id});
       }
       if(emptied) s.tabs=s.tabs.filter(function(x){ return x!==t; });
       return;
@@ -442,7 +449,29 @@ function applyOp(s, op){
       var amt=r2(Math.min(op.amount, d.amount-d.paid)); if(amt<=0) return;
       d.paid=r2(d.paid+amt);
       if(d.paid>=d.amount-0.001){ d.status="bezahlt"; d.closed=op.at; }
-      s.payments.push({id:op.pid, day:op.day, at:op.at, name:d.name, area:"", method:op.method, amount:amt, kind:"schulden", lines:[], staff:op.staff||""});
+      s.payments.push({id:op.pid, day:op.day, at:op.at, name:d.name, area:"", method:op.method, amount:amt, kind:"schulden", lines:[], staff:op.staff||"", debt:d.id});
+      return;
+    case "payEdit":                                   // Zahlart nachträglich ändern
+      var pe=findBy(s.payments,op.pay); if(!pe || pe.void) return;
+      if(op.method && op.method!=="schulden" && METHODS[op.method]) pe.method=op.method; return;
+    case "payVoid":                                   // Zahlung zurückholen (Storno)
+      var pv=findBy(s.payments,op.pay); if(!pv || pv.void) return;
+      pv.void=true; pv.voidAt=op.at; pv.voidBy=op.staff||"";
+      if(pv.kind==="schulden"){
+        var dv=pv.debt?findBy(s.debts,pv.debt):null;
+        if(dv){ dv.paid=r2(Math.max(0,dv.paid-pv.amount)); dv.status="offen"; dv.closed=0; }
+        return;
+      }
+      if(!pv.lines || !pv.lines.length) return;
+      var tv=pv.tab?findBy(s.tabs,pv.tab):null;
+      if(!tv){ tv={id:op.newTab||("r-"+pv.id), area:pv.area||"xt", name:pv.name, opened:op.at, staff:op.staff||"", items:{}, meta:{}}; s.tabs.push(tv); }
+      pv.lines.forEach(function(l){
+        var lid=l.id;
+        if(!lid){ for(var k=0;k<s.menu.length;k++) if(s.menu[k].name===l.name){ lid=s.menu[k].id; break; } }
+        if(!lid) lid="x-"+slug(l.name);
+        tv.items[lid]=(tv.items[lid]||0)+l.qty;
+        if(!tv.meta[lid]) tv.meta[lid]={name:l.name, price:l.price, cat:l.cat||""};
+      });
       return;
     case "expense":
       if(findBy(s.expenses,op.pid)) return;
@@ -669,7 +698,7 @@ function renderFloor(){
   const d=dayKey();
   $("#kOpen").textContent=V.tabs.length;
   $("#kSum").textContent=eur(V.tabs.reduce((s,t)=>s+tabTotal(t),0));
-  $("#kPaid").textContent=eur(V.payments.filter(p=>p.day===d).reduce((s,p)=>s+p.amount,0));
+  $("#kPaid").textContent=eur(V.payments.filter(p=>p.day===d&&!p.void).reduce((s,p)=>s+p.amount,0));
   const od=V.debts.filter(x=>x.status==="offen").length;
   $("#kDebts").hidden=!od; $("#kDebts").textContent=od;
 }
@@ -1079,14 +1108,15 @@ function debtNewDialog(){
    ========================================================= */
 $("#btnDay").onclick=()=>dayDialog();
 function dayFigures(day){
-  const pays=V.payments.filter(p=>p.day===day).sort((a,b)=>b.at-a.at);
+  const allPays=V.payments.filter(p=>p.day===day).sort((a,b)=>b.at-a.at);
+  const pays=allPays.filter(p=>!p.void);
   const by=k=>Math.round(pays.filter(p=>p.method===k).reduce((s,p)=>s+p.amount,0)*100)/100;
   const exps=V.expenses.filter(e=>e.day===day).sort((a,b)=>b.at-a.at);
   const newDebts=V.debts.filter(d=>dayKey(new Date(d.created))===day);
   const top={}; pays.forEach(p=>(p.lines||[]).forEach(l=>top[l.name]=(top[l.name]||0)+l.qty));
   newDebts.forEach(d=>(d.lines||[]).forEach(l=>top[l.name]=(top[l.name]||0)+l.qty));
   const r2=x=>Math.round(x*100)/100;
-  return { pays, exps, newDebts,
+  return { pays, allPays, exps, newDebts,
     bar:by("bar"), ec:by("ec"), paypal:by("paypal"),
     total:r2(pays.reduce((s,p)=>s+p.amount,0)),
     exp:r2(exps.reduce((s,e)=>s+e.amount,0)),
@@ -1128,7 +1158,7 @@ function dayDialog(day=dayKey()){
     <div class="tools"><button class="btn" id="tExp">+ Auslage</button><button class="btn" id="tDebt">Schuldenbuch</button><button class="btn" id="tMenu">Karte bearbeiten</button></div>
     ${f.top.length?`<span class="lbl">Renner</span><div class="list">${f.top.map(([n,q])=>`<div class="li"><span>${esc(n)}</span><span class="num">${q}×</span></div>`).join("")}</div>`:""}
     ${f.exps.length?`<span class="lbl">Auslagen</span><div class="list">${f.exps.map(e=>`<div class="li"><span>${timeStr(e.at)} · ${esc(e.what)}${e.staff?" · "+esc(e.staff):""}</span><span class="num">− ${eur(e.amount)}</span></div>`).join("")}</div>`:""}
-    <span class="lbl">Zahlungen (${f.pays.length})</span><div class="list">${f.pays.length?f.pays.map(p=>`<div class="li"><span>${timeStr(p.at)} · ${esc(p.name)}${p.kind==="teil"?" (Teil)":p.kind==="schulden"?" (Schulden)":""} · ${METHODS[p.method]||p.method}${p.staff?" · "+esc(p.staff):""}</span><span class="num">${eur(p.amount)}${p.tip?` <small style="color:var(--gold2)">+${eur(p.tip)} TG</small>`:""}</span></div>`).join(""):`<div class="li"><span>Noch nichts kassiert</span><span></span></div>`}</div>
+    <span class="lbl">Zahlungen (${f.pays.length}) · antippen zum Ändern oder Zurückholen</span><div class="list">${f.allPays.length?f.allPays.map(p=>`<button class="li pay${p.void?" void":""}" data-pay="${p.id}"><span>${timeStr(p.at)} · ${esc(p.name)}${p.kind==="teil"?" (Teil)":p.kind==="schulden"?" (Schulden)":""} · <b class="mth">${METHODS[p.method]||p.method}</b>${p.staff?" · "+esc(p.staff):""}${p.void?` · <b class="vd">storniert</b>`:""}</span><span class="num">${eur(p.amount)}${p.tip?` <small style="color:var(--gold2)">+${eur(p.tip)} TG</small>`:""} ›</span></button>`).join(""):`<div class="li"><span>Noch nichts kassiert</span><span></span></div>`}</div>
     <div class="row"><button class="btn" id="tFav">Favoriten zurücksetzen</button><button class="btn pri" id="cx">Schließen</button></div>`);
   $$("[data-day]").forEach(b=>b.onclick=()=>dayDialog(b.dataset.day));
   $$("[data-cl]").forEach(b=>b.onclick=()=>reportDialog(V.closes.find(c=>c.id===b.dataset.cl),day));
@@ -1137,7 +1167,37 @@ function dayDialog(day=dayKey()){
   $("#tExp").onclick=expenseDialog;
   $("#tDebt").onclick=()=>debtsDialog();
   $("#tMenu").onclick=()=>menuDialog();
+  $$("[data-pay]").forEach(b=>b.onclick=()=>payDetailDialog(V.payments.find(p=>p.id===b.dataset.pay),day));
   $("#tFav").onclick=()=>{ if(confirm("Verkaufszähler für die Favoriten auf Null setzen? (gilt für alle Geräte)")){ dispatch({t:"resetStats"}); toast("Favoriten zurückgesetzt",false); } };
+}
+
+/* ---------- Zahlung ansehen / Zahlart ändern / zurückholen ---------- */
+function payDetailDialog(p,day){
+  if(!p) return dayDialog(day);
+  const closed=(V.closes||[]).some(c=>c.day===p.day);
+  modal(`<h2>${esc(p.name)}${p.void?' <span class="vd">· storniert</span>':""}</h2>
+    <p class="hint">${new Date(p.at).toLocaleDateString("de-DE",{weekday:"short",day:"2-digit",month:"2-digit"})} · ${timeStr(p.at)} Uhr${p.area?" · "+esc(areaName(p.area)):""}${p.staff?" · kassiert von "+esc(p.staff):""}${p.void&&p.voidBy?` · zurückgeholt von ${esc(p.voidBy)}`:""}</p>
+    ${(p.lines||[]).length?`<div class="list">${p.lines.map(l=>`<div class="li"><span>${l.qty}× ${esc(l.name)}</span><span class="num">${eur(l.price*l.qty)}</span></div>`).join("")}</div>`:`<p class="hint">${p.kind==="schulden"?"Zahlung auf Schulden":"Keine Positionen"}</p>`}
+    <div class="bigtotal"><span>${METHODS[p.method]||p.method}${p.tip?` · + ${eur(p.tip)} Trinkgeld`:""}</span><b class="num">${eur(p.amount)}</b></div>
+    ${p.void?"":`
+      <span class="lbl">Zahlart ändern (z. B. Karte ging nicht → Bar)</span>
+      <div class="methods">${[["bar","Bar"],["ec","EC-Karte"],["paypal","PayPal"]].map(([k,l])=>`<button data-pm="${k}" class="${p.method===k?"on":""}">${l}</button>`).join("")}</div>
+      <span class="lbl">Oder ganz zurückholen</span>
+      <button class="btn danger wide" id="pv">↩ Zurückholen · ${p.kind==="schulden"?"Betrag wieder als Schulden offen":"Getränke wieder auf den Deckel"}</button>
+      ${closed?`<p class="hint" style="margin-top:8px">⚠ Für diesen Tag wurde schon ein Kassensturz gemacht. Nach der Änderung am besten den Kassensturz erneut machen.</p>`:""}`}
+    <div class="row"><button class="btn pri" id="cx">Zurück zur Kasse</button></div>`);
+  $("#cx").onclick=()=>dayDialog(day);
+  $$("[data-pm]").forEach(b=>b.onclick=()=>{ if(b.dataset.pm===p.method) return;
+    dispatch({t:"payEdit",pay:p.id,method:b.dataset.pm});
+    showFx(p.name,`Zahlart geändert → ${METHODS[b.dataset.pm]}`,"gold",()=>dayDialog(day)); });
+  if($("#pv")) $("#pv").onclick=()=>{
+    const what=p.kind==="schulden"?`Die ${eur(p.amount)} von ${p.name} gelten wieder als offene Schulden.`:`Die Zahlung über ${eur(p.amount)} wird storniert und ${p.name} hat wieder einen offenen Deckel.`;
+    if(!confirm(what+" Weiter?")) return;
+    const newTab=uid(); dispatch({t:"payVoid",pay:p.id,newTab}); closeModal();
+    if(p.kind==="schulden"){ toast(`${p.name}: wieder als Schulden offen`,false); return; }
+    const tabId=(V.tabs.find(x=>x.id===p.tab)||V.tabs.find(x=>x.id===newTab)||{}).id;
+    showFx(p.name,"↩ Zurückgeholt – jetzt neu kassieren","",()=>{ if(tabId) openTab(tabId); });
+  };
 }
 
 function allDoneDialog(){

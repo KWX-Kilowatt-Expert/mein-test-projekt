@@ -56,6 +56,7 @@ Alle Mitarbeiter öffnen denselben Link auf Tablet oder Handy und melden sich mi
 | Schulden | Knopf **Schulden** oben: alle Offenen nach Namen. Antippen → zahlen (auch in Raten). **＋ Anschreiben** für Schulden ohne Deckel. |
 | Auslage | **Kasse → ＋ Auslage**, z. B. Zitronen gekauft. Wird vom Bargeld abgezogen. |
 | Kassensturz | **Kasse** zeigt Bar / EC / PayPal, Auslagen, **Soll in Kasse** und was angeschrieben wurde. Die Nacht zählt bis 8 Uhr morgens zum Vortag. |
+| **Zahlung korrigieren** | **Kasse → unten auf eine Zahlung tippen**: **Zahlart ändern** (z. B. Karte ging nicht → Bar) oder **↩ Zurückholen** (Storno: Getränke wieder auf den Deckel, dann neu kassieren). Stornierte Zahlungen bleiben durchgestrichen sichtbar und stehen in der Tabelle mit Status „storniert“. |
 | **Zigarren** | Alles aus einer Kategorie mit „Zigarre“ im Namen wird **getrennt vom Getränke-Umsatz** gezeigt: Kasse (Getränke / Zigarren mit Stückzahl), Bericht (Abschnitt ZIGARREN), Wochenmail (Spalte „davon Zigarren“), Tabelle (Spalte „Zigarren“). |
 | **Trinkgeld** | Beim Kassieren: **Kein · +1 · +2 · +5 €**, **Aufrunden** oder anderer Betrag. Wird getrennt vom Umsatz gespeichert (Spalte „Trinkgeld“), Bar-Trinkgeld zählt zum Soll in der Kasse. |
 | **Feierabend** | **Kasse → Feierabend · Tagesabschluss**: Wechselgeld Anfang, gezähltes Bargeld, Wechselgeld für morgen und optional die EC-Summe vom Terminal eintragen. Die App rechnet **Soll, Differenz und Entnahme** aus. Der Bericht wird im Blatt **„Abschlüsse“** gespeichert und lässt sich **per WhatsApp** verschicken. |

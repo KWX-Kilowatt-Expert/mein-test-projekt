@@ -2,7 +2,8 @@
 const assert=require("assert"), {makeEnv}=require("./gas-mock");
 const {ctx,sheets,mails,triggers}=makeEnv();
 const api=r=>JSON.parse(JSON.stringify(ctx.api(r)));
-let n=0; const op=(o)=>Object.assign({id:"op"+(++n), at:Date.UTC(2026,10,5,20,0)+n*60000, day:"2026-11-05", staff:"Lisa"},o);
+const T0=new Date(); T0.setUTCHours(20,0,0,0); const DAY=T0.toISOString().slice(0,10);
+let n=0; const op=(o)=>Object.assign({id:"op"+(++n), at:T0.getTime()+n*60000, day:DAY, staff:"Lisa"},o);
 
 assert.deepStrictEqual(api({pin:"1234",ops:[]}), {ok:false,error:"pin"});
 let r=api({pin:"0000",since:0,ops:[]});
@@ -33,7 +34,7 @@ assert.strictEqual(r.state.debts[0].status,"bezahlt"); assert.strictEqual(r.stat
 // Auslage, Karte, neu laden aus Tabelle
 r=api({pin:"0000",ops:[op({t:"expense",pid:"E1",what:"Zitronen",amount:12.4}), op({t:"menuSet",item:{id:"m-z1",cat:"Zigarren",name:"Cohiba Siglo II",price:24,desc:""}})]});
 const fresh=api({pin:"0000",since:-1,ops:[]}).state;
-assert.strictEqual(fresh.payments.length,3); assert.strictEqual(fresh.payments[0].day,"2026-11-05", "Datum aus Tabelle korrekt");
+assert.strictEqual(fresh.payments.length,3); assert.strictEqual(fresh.payments[0].day,DAY, "Datum aus Tabelle korrekt");
 assert.strictEqual(fresh.payments[1].method,"paypal");
 assert.deepStrictEqual(fresh.expenses.map(e=>e.amount),[12.4]);
 assert.ok(fresh.menu.find(m=>m.cat==="Zigarren" && m.price===24));
@@ -71,23 +72,47 @@ assert.strictEqual(sheets.Zahlungen.data.find(x=>x[0]==="PZ")[13],48, "Spalte Zi
 // alte Position ohne Kategorie: über die Karte erkannt
 assert.strictEqual(ctx.cigarSplit([{name:"Cohiba Siglo II",price:24,qty:1}],r.state.menu).sum,24);
 assert.ok(/ZIGARREN \(2 Stück · 48,00 €\)/.test(ctx.reportText({total:59,cigar:48,cigarCount:2,cigars:[["Cohiba Siglo II",2]]})));
+// Zahlart ändern (EC ging nicht → Bar) und Zurückholen
+r=api({pin:"0000",ops:[op({t:"open",tab:"TS",area:"t2",name:"Lena"}),op({t:"add",tab:"TS",item:"cuba-libre",d:2,name:"Cuba Libre",price:8.5,cat:"Cocktails"}),
+  op({t:"pay",tab:"TS",sel:{"cuba-libre":2},method:"ec",pid:"PS",tip:1})]});
+assert.ok(!r.state.tabs.find(x=>x.id==="TS"));
+r=api({pin:"0000",ops:[op({t:"payEdit",pay:"PS",method:"bar"})]});
+assert.strictEqual(r.state.payments.find(x=>x.id==="PS").method,"bar");
+let zrow=sheets.Zahlungen.data.find(x=>x[0]==="PS"); assert.strictEqual(zrow[5],"Bar", "Zeile in Tabelle aktualisiert");
+assert.strictEqual(sheets.Zahlungen.data.filter(x=>x[0]==="PS").length,1, "keine doppelte Zeile");
+r=api({pin:"0000",ops:[op({t:"payVoid",pay:"PS",newTab:"TS2"})]});
+const ps=r.state.payments.find(x=>x.id==="PS"); assert.strictEqual(ps.void,true);
+const reopened=r.state.tabs.find(x=>x.id==="TS2"); assert.ok(reopened, "Deckel wieder offen");
+assert.strictEqual(reopened.items["cuba-libre"],2); assert.strictEqual(reopened.area,"t2"); assert.strictEqual(reopened.name,"Lena");
+zrow=sheets.Zahlungen.data.find(x=>x[0]==="PS"); assert.strictEqual(zrow[14],"storniert");
+assert.strictEqual(api({pin:"0000",since:-1,ops:[]}).state.payments.find(x=>x.id==="PS").void,true, "Storno aus Tabelle geladen");
+r=api({pin:"0000",ops:[op({t:"payVoid",pay:"PS",newTab:"TS3"})]}); assert.ok(!r.state.tabs.find(x=>x.id==="TS3"), "nicht zweimal zurückholen");
+// Teilzahlung zurückholen: Getränke gehen auf den noch offenen Deckel zurück
+r=api({pin:"0000",ops:[op({t:"add",tab:"TS2",item:"fruh-kolsch",d:1,name:"Früh Kölsch",price:2.8}),op({t:"pay",tab:"TS2",sel:{"cuba-libre":1},method:"ec",pid:"PS4"}),
+  op({t:"payVoid",pay:"PS4",newTab:"XX"})]});
+assert.strictEqual(r.state.tabs.find(x=>x.id==="TS2").items["cuba-libre"],2); assert.ok(!r.state.tabs.find(x=>x.id==="XX"));
+// Schulden-Zahlung zurückholen: wieder offen
+r=api({pin:"0000",ops:[op({t:"debtNew",pid:"DS",name:"Otto",amount:20}),op({t:"debtPay",debt:"DS",amount:20,method:"ec",pid:"PD"})]});
+assert.strictEqual(r.state.debts.find(x=>x.id==="DS").status,"bezahlt");
+r=api({pin:"0000",ops:[op({t:"payVoid",pay:"PD"})]});
+const ds=r.state.debts.find(x=>x.id==="DS"); assert.strictEqual(ds.status,"offen"); assert.strictEqual(ds.paid,0);
 // Einrichten: Einstellungen + Wochen-Trigger
 ctx.einrichten();
 assert.ok(sheets.Einstellungen.data.some(r=>r[0]==="Bericht an" && r[1]==="chef@example.com"));
 assert.strictEqual(triggers.length,1); ctx.einrichten(); assert.strictEqual(triggers.length,1, "Trigger nur einmal");
 // Tagesabschluss
-r=api({pin:"0000",ops:[op({t:"close",pid:"C1",report:{day:"2026-11-05",bar:10.5,ec:8.5,paypal:10,total:29,exp:12.4,start:150,soll:148.1,counted:146.1,diff:-2,float:150,take:-3.9,ecTerm:null,debtNew:20.5,debtPaid:20.5,openSum:0,openCount:0,note:"Test"}})]});
+r=api({pin:"0000",ops:[op({t:"close",pid:"C1",report:{day:DAY,bar:10.5,ec:8.5,paypal:10,total:29,exp:12.4,start:150,soll:148.1,counted:146.1,diff:-2,float:150,take:-3.9,ecTerm:null,debtNew:20.5,debtPaid:20.5,openSum:0,openCount:0,note:"Test"}})]});
 assert.strictEqual(r.state.closes.length,1);
 assert.strictEqual(mails.length,1, "Mail nach Abschluss"); assert.ok(/Differenz −2,00 € · Lisa/.test(mails[0].subject), mails[0].subject);
 assert.ok(/Gezählt\.+ +146,10 €/.test(mails[0].body), mails[0].body); assert.strictEqual(mails[0].attachments.length,1);
 const crow=sheets["Abschlüsse"].data[1]; assert.strictEqual(crow[12],-2); assert.strictEqual(crow[3],"Lisa");
 assert.strictEqual(api({pin:"0000",since:-1,ops:[]}).state.closes[0].counted,146.1, "Abschluss aus Tabelle geladen");
 // Wochenbericht (Testdaten liegen "heute" → einen Tag zurückdatieren)
-const realNow=Date.now; ctx.Date.now=()=>Date.UTC(2026,10,6,12);
+const realNow=Date.now; ctx.Date.now=()=>T0.getTime()+864e5;
 ctx.wochenbericht(); ctx.Date.now=realNow;
 const w=mails[1]; assert.ok(w && /Wochenbericht/.test(w.htmlBody) && w.htmlBody.includes("Rudi")===false || true);
 console.log("Wochen-Betreff:", w.subject);
 // Mail aus → keine Mail
 sheets.Einstellungen.data.forEach(r=>{ if(r[0]==="Tagesbericht per Mail") r[1]="nein"; }); ctx.CacheService.getScriptCache().remove("settings");
-api({pin:"0000",ops:[op({t:"close",pid:"C2",report:{day:"2026-11-05",diff:0}})]}); assert.strictEqual(mails.length,2, "abgeschaltet");
+api({pin:"0000",ops:[op({t:"close",pid:"C2",report:{day:DAY,diff:0}})]}); assert.strictEqual(mails.length,2, "abgeschaltet");
 console.log("Alle Server-Tests bestanden ✓  ("+sheets.Zahlungen.lastRow()+" Zeilen in Zahlungen inkl. Kopf)");
