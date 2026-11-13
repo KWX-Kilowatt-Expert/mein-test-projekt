@@ -793,15 +793,25 @@ function splitDialog(){
 /* ---------- Rechnung zum Zeigen (passt sich automatisch an eine Seite an) ---------- */
 function showReceipt(t,sel){
   const ids=Object.keys(t.items).filter(id=>(sel[id]||0)>0);
-  const lines=ids.map(id=>{ const p=lineItem(t,id), q=sel[id]; return {q,name:p.name,price:p.price,sum:Math.round(p.price*q*100)/100}; });
+  const lines=ids.map(id=>{ const p=lineItem(t,id); return {qty:sel[id],name:p.name,price:p.price}; });
+  drawReceipt({name:t.name, area:t.area, at:Date.now(), partial:ids.some(id=>sel[id]<t.items[id]), lines, by:staff});
+}
+// Bon zu einer schon bezahlten Zahlung (aus der Kasse)
+function showPaidReceipt(p){
+  drawReceipt({name:p.name, area:p.area, at:p.at, partial:p.kind==="teil", lines:p.lines||[], by:p.staff,
+    paid:`Bezahlt · ${METHODS[p.method]||p.method}${p.tip?` · + ${eur(p.tip)} Trinkgeld`:""}`, void:p.void});
+}
+function drawReceipt(o){
+  const lines=o.lines.map(l=>({q:l.qty,name:l.name,price:l.price,sum:Math.round(l.price*l.qty*100)/100}));
   const total=Math.round(lines.reduce((s,l)=>s+l.sum,0)*100)/100, n=lines.reduce((s,l)=>s+l.q,0);
-  const now=new Date(), partial=ids.some(id=>sel[id]<t.items[id]);
+  const now=new Date(o.at);
+  const staff=o.by;
   $("#rpaper").innerHTML=`<div class="rh"><div class="rlogo">Prediger</div>
       <div class="rmeta">${now.toLocaleDateString("de-DE",{weekday:"long",day:"numeric",month:"long",year:"numeric"})} · ${timeStr(now)} Uhr</div>
-      <div class="rguest">${esc(t.name)} · ${esc(areaName(t.area))}${partial?" · Teil":""}</div></div>
+      <div class="rguest">${esc(o.name)}${o.area?" · "+esc(areaName(o.area)):""}${o.partial?" · Teil":""}</div>${o.void?`<div class="rmeta" style="color:#b3261e;font-weight:700">STORNIERT</div>`:""}</div>
     <table>${lines.map(l=>`<tr><td class="q">${l.q}×</td><td class="n">${esc(l.name)}${l.q>1?`<small>à ${eur(l.price)}</small>`:""}</td><td class="a">${eur(l.sum)}</td></tr>`).join("")}</table>
     <div class="rsum"><span>Summe</span><b>${eur(total)}</b></div>
-    <div class="rcount">${n} Getränk${n===1?"":"e"}</div>
+    <div class="rcount">${n} Getränk${n===1?"":"e"}${o.paid?` · ${esc(o.paid)}`:""}</div>
     <div class="rfoot"><b>Danke &amp; bis bald!</b>${staff?`Es bediente dich ${esc(staff)}`:""}</div>`;
   const r=$("#receipt"); r.classList.add("show");
   fitReceipt();
@@ -1024,6 +1034,7 @@ function payDetailDialog(p,day){
   modal(`<h2>${esc(p.name)}${p.void?' <span class="vd">· storniert</span>':""}</h2>
     <p class="hint">${new Date(p.at).toLocaleDateString("de-DE",{weekday:"short",day:"2-digit",month:"2-digit"})} · ${timeStr(p.at)} Uhr${p.area?" · "+esc(areaName(p.area)):""}${p.staff?" · kassiert von "+esc(p.staff):""}${p.void&&p.voidBy?` · zurückgeholt von ${esc(p.voidBy)}`:""}</p>
     ${(p.lines||[]).length?`<div class="list">${p.lines.map(l=>`<div class="li"><span>${l.qty}× ${esc(l.name)}</span><span class="num">${eur(l.price*l.qty)}</span></div>`).join("")}</div>`:`<p class="hint">${p.kind==="schulden"?"Zahlung auf Schulden":"Keine Positionen"}</p>`}
+    ${(p.lines||[]).length?`<button class="btn rcp" id="prc">🧾 Rechnung zeigen</button>`:""}
     <div class="bigtotal"><span>${METHODS[p.method]||p.method}${p.tip?` · + ${eur(p.tip)} Trinkgeld`:""}</span><b class="num">${eur(p.amount)}</b></div>
     ${p.void?"":`
       <span class="lbl">Zahlart ändern (z. B. Karte ging nicht → Bar)</span>
@@ -1033,6 +1044,7 @@ function payDetailDialog(p,day){
       ${closed?`<p class="hint" style="margin-top:8px">⚠ Für diesen Tag wurde schon ein Kassensturz gemacht. Nach der Änderung am besten den Kassensturz erneut machen.</p>`:""}`}
     <div class="row"><button class="btn pri" id="cx">Zurück zur Kasse</button></div>`);
   $("#cx").onclick=()=>dayDialog(day);
+  if($("#prc")) $("#prc").onclick=()=>showPaidReceipt(p);
   $$("[data-pm]").forEach(b=>b.onclick=()=>{ if(b.dataset.pm===p.method) return;
     dispatch({t:"payEdit",pay:p.id,method:b.dataset.pm});
     showFx(p.name,`Zahlart geändert → ${METHODS[b.dataset.pm]}`,"gold",()=>dayDialog(day)); });
